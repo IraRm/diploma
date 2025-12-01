@@ -1,0 +1,3041 @@
+
+================ FILE: /Users/evabilet/MyApp/.expo/types/router.d.ts ================
+/* eslint-disable */
+import * as Router from 'expo-router';
+
+export * from 'expo-router';
+
+declare module 'expo-router' {
+  export namespace ExpoRouter {
+    export interface __routes<T extends string | object = string> {
+      hrefInputParams: { pathname: Router.RelativePathString, params?: Router.UnknownInputParams } | { pathname: Router.ExternalPathString, params?: Router.UnknownInputParams } | { pathname: `/modal`; params?: Router.UnknownInputParams; } | { pathname: `/_sitemap`; params?: Router.UnknownInputParams; } | { pathname: `${'/(tabs)'}/explore` | `/explore`; params?: Router.UnknownInputParams; } | { pathname: `${'/(tabs)'}` | `/`; params?: Router.UnknownInputParams; };
+      hrefOutputParams: { pathname: Router.RelativePathString, params?: Router.UnknownOutputParams } | { pathname: Router.ExternalPathString, params?: Router.UnknownOutputParams } | { pathname: `/modal`; params?: Router.UnknownOutputParams; } | { pathname: `/_sitemap`; params?: Router.UnknownOutputParams; } | { pathname: `${'/(tabs)'}/explore` | `/explore`; params?: Router.UnknownOutputParams; } | { pathname: `${'/(tabs)'}` | `/`; params?: Router.UnknownOutputParams; };
+      href: Router.RelativePathString | Router.ExternalPathString | `/modal${`?${string}` | `#${string}` | ''}` | `/_sitemap${`?${string}` | `#${string}` | ''}` | `${'/(tabs)'}/explore${`?${string}` | `#${string}` | ''}` | `/explore${`?${string}` | `#${string}` | ''}` | `${'/(tabs)'}${`?${string}` | `#${string}` | ''}` | `/${`?${string}` | `#${string}` | ''}` | { pathname: Router.RelativePathString, params?: Router.UnknownInputParams } | { pathname: Router.ExternalPathString, params?: Router.UnknownInputParams } | { pathname: `/modal`; params?: Router.UnknownInputParams; } | { pathname: `/_sitemap`; params?: Router.UnknownInputParams; } | { pathname: `${'/(tabs)'}/explore` | `/explore`; params?: Router.UnknownInputParams; } | { pathname: `${'/(tabs)'}` | `/`; params?: Router.UnknownInputParams; };
+    }
+  }
+}
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/.expo/settings.json ================
+(binary file skipped)
+
+
+
+================ FILE: /Users/evabilet/MyApp/.expo/README.md ================
+> Why do I have a folder named ".expo" in my project?
+
+The ".expo" folder is created when an Expo project is started using "expo start" command.
+
+> What do the files contain?
+
+- "devices.json": contains information about devices that have recently opened this project. This is used to populate the "Development sessions" list in your development builds.
+- "settings.json": contains the server configuration that is used to serve the application manifest.
+
+> Should I commit the ".expo" folder?
+
+No, you should not share the ".expo" folder. It does not contain any information that is relevant for other developers working on the project, it is specific to your machine.
+Upon project creation, the ".expo" folder is already added to your ".gitignore" file.
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/.expo/devices.json ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/.DS_Store ================
+(binary file skipped)
+
+
+
+================ FILE: /Users/evabilet/MyApp/app/index.tsx ================
+export { default } from "./splash";
+
+
+
+================ FILE: /Users/evabilet/MyApp/app/home ================
+// app/home.tsx
+import { Text, View } from "react-native";
+
+export default function HomeScreen() {
+  return (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+      <Text>Это главная страница</Text>
+    </View>
+  );
+}
+
+
+
+================ FILE: /Users/evabilet/MyApp/app/(tabs)/index.tsx ================
+import { useEffect, useMemo, useState } from "react";
+import { View, Text, StyleSheet, FlatList, ActivityIndicator } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { colors } from "../../src/theme/colors";
+import { SearchBar } from "../../src/components/SearchBar";
+import { FilterChips } from "../../src/components/FilterChips";
+import { ShowCard } from "../../src/components/ShowCard";
+import { useFavorites } from "../../src/state/FavoritesContext";
+import type { Show } from "../../src/data/mockShows";
+
+export default function HomeScreen() {
+  const [query, setQuery] = useState("");
+  const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+  const [selectedTheatre, setSelectedTheatre] = useState<string | null>(null);
+
+  const [shows, setShows] = useState<Show[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [backendOk, setBackendOk] = useState(false);
+
+  const { toggleFavorite, isFavorite } = useFavorites();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        setLoading(true);
+        setBackendOk(false);
+
+        const res = await fetch("http://localhost:3000/shows");
+        if (!res.ok) throw new Error("Bad status " + res.status);
+
+        const data: Show[] = await res.json();
+        if (cancelled) return;
+
+        setShows(data);
+        setBackendOk(true);
+      } catch (e) {
+        if (cancelled) return;
+        // ВАЖНО: если бэк не ответил — очищаем список
+        setShows([]);
+        setBackendOk(false);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return shows.filter((show) => {
+      const matchesQuery =
+        !q ||
+        show.title.toLowerCase().includes(q) ||
+        show.theatre.toLowerCase().includes(q);
+      const matchesGenre = !selectedGenre || show.genre === selectedGenre;
+      const matchesTheatre = !selectedTheatre || show.theatre === selectedTheatre;
+      return matchesQuery && matchesGenre && matchesTheatre;
+    });
+  }, [shows, query, selectedGenre, selectedTheatre]);
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.container}>
+        <Text style={styles.title}>Спектакли в вашем городе</Text>
+
+        <SearchBar value={query} onChange={setQuery} />
+
+        <FilterChips
+          onPressDate={() => {
+            // TODO: окно выбора даты
+          }}
+          onPressGenre={() => {
+            // TODO: маленькое окошко выбора жанров
+          }}
+          onPressTheatre={() => {
+            // TODO: выбор театра
+          }}
+        />
+
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={colors.accent} />
+            <Text style={styles.loadingText}>Загружаем спектакли…</Text>
+          </View>
+        ) : !backendOk ? (
+          <View style={styles.center}>
+            <Text style={styles.errorText}>
+              Нет соединения с сервером. Спектакли временно недоступны.
+            </Text>
+          </View>
+        ) : filtered.length === 0 ? (
+          <View style={styles.center}>
+            <Text style={styles.emptyText}>По запросу ничего не найдено</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filtered}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => (
+              <ShowCard
+                show={item}
+                isFavorite={isFavorite(item.id)}
+                onToggleFavorite={() => toggleFavorite(item.id)}
+              />
+            )}
+          />
+        )}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, paddingTop: 4 },
+  title: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: "700",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4
+  },
+  listContent: {
+    paddingTop: 4,
+    paddingBottom: 24
+  },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24
+  },
+  loadingText: {
+    marginTop: 12,
+    color: colors.textMuted
+  },
+  errorText: {
+    color: "#f87171",
+    textAlign: "center"
+  },
+  emptyText: {
+    color: colors.textMuted,
+    textAlign: "center"
+  }
+});
+
+
+
+================ FILE: /Users/evabilet/MyApp/app/(tabs)/profile.tsx ================
+import { View, Text, StyleSheet } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { colors } from "../../src/theme/colors";
+
+export default function ProfileScreen() {
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.container}>
+        <Text style={styles.text}>Профиль пользователя (заглушка)</Text>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, alignItems: "center", justifyContent: "center" },
+  text: { color: colors.text }
+});
+
+
+
+================ FILE: /Users/evabilet/MyApp/app/(tabs)/_layout.tsx ================
+import { Tabs } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { colors } from "../../src/theme/colors";
+
+export default function TabsLayout() {
+  return (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarStyle: {
+          backgroundColor: colors.panel,
+          borderTopColor: colors.line
+        }
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "Главная",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" color={color} size={size} />
+          )
+        }}
+      />
+      <Tabs.Screen
+        name="favorites"
+        options={{
+          title: "Любимое",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="heart-outline" color={color} size={size} />
+          )
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Профиль",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" color={color} size={size} />
+          )
+        }}
+      />
+    </Tabs>
+  );
+}
+
+
+
+================ FILE: /Users/evabilet/MyApp/app/(tabs)/explore.tsx ================
+import { Image } from 'expo-image';
+import { Platform, StyleSheet } from 'react-native';
+
+import { Collapsible } from '@/components/ui/collapsible';
+import { ExternalLink } from '@/components/external-link';
+import ParallaxScrollView from '@/components/parallax-scroll-view';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Fonts } from '@/constants/theme';
+
+export default function TabTwoScreen() {
+  return (
+    <ParallaxScrollView
+      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
+      headerImage={
+        <IconSymbol
+          size={310}
+          color="#808080"
+          name="chevron.left.forwardslash.chevron.right"
+          style={styles.headerImage}
+        />
+      }>
+      <ThemedView style={styles.titleContainer}>
+        <ThemedText
+          type="title"
+          style={{
+            fontFamily: Fonts.rounded,
+          }}>
+          Explore
+        </ThemedText>
+      </ThemedView>
+      <ThemedText>This app includes example code to help you get started.</ThemedText>
+      <Collapsible title="File-based routing">
+        <ThemedText>
+          This app has two screens:{' '}
+          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
+          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
+        </ThemedText>
+        <ThemedText>
+          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
+          sets up the tab navigator.
+        </ThemedText>
+        <ExternalLink href="https://docs.expo.dev/router/introduction">
+          <ThemedText type="link">Learn more</ThemedText>
+        </ExternalLink>
+      </Collapsible>
+      <Collapsible title="Android, iOS, and web support">
+        <ThemedText>
+          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
+          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
+        </ThemedText>
+      </Collapsible>
+      <Collapsible title="Images">
+        <ThemedText>
+          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
+          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
+          different screen densities
+        </ThemedText>
+        <Image
+          source={require('@/assets/images/react-logo.png')}
+          style={{ width: 100, height: 100, alignSelf: 'center' }}
+        />
+        <ExternalLink href="https://reactnative.dev/docs/images">
+          <ThemedText type="link">Learn more</ThemedText>
+        </ExternalLink>
+      </Collapsible>
+      <Collapsible title="Light and dark mode components">
+        <ThemedText>
+          This template has light and dark mode support. The{' '}
+          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
+          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
+        </ThemedText>
+        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
+          <ThemedText type="link">Learn more</ThemedText>
+        </ExternalLink>
+      </Collapsible>
+      <Collapsible title="Animations">
+        <ThemedText>
+          This template includes an example of an animated component. The{' '}
+          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
+          the powerful{' '}
+          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
+            react-native-reanimated
+          </ThemedText>{' '}
+          library to create a waving hand animation.
+        </ThemedText>
+        {Platform.select({
+          ios: (
+            <ThemedText>
+              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
+              component provides a parallax effect for the header image.
+            </ThemedText>
+          ),
+        })}
+      </Collapsible>
+    </ParallaxScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  headerImage: {
+    color: '#808080',
+    bottom: -90,
+    left: -35,
+    position: 'absolute',
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+});
+
+
+
+================ FILE: /Users/evabilet/MyApp/app/(tabs)/favorites.tsx ================
+import { View, Text, StyleSheet, FlatList } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { colors } from "../../src/theme/colors";
+import { useFavorites } from "../../src/state/FavoritesContext";
+import { mockShows } from "../../src/data/mockShows";
+import { ShowCard } from "../../src/components/ShowCard";
+
+export default function FavoritesScreen() {
+  const { favorites, toggleFavorite, isFavorite } = useFavorites();
+
+  const favoriteShows = mockShows.filter((show) => favorites.includes(show.id));
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.container}>
+        <Text style={styles.title}>Любимые спектакли</Text>
+
+        {favoriteShows.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyText}>Пока ничего нет в любимом</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={favoriteShows}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => (
+              <ShowCard
+                show={item}
+                isFavorite={isFavorite(item.id)}
+                onToggleFavorite={() => toggleFavorite(item.id)}
+              />
+            )}
+          />
+        )}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, paddingTop: 4 },
+  title: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: "700",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4
+  },
+  listContent: {
+    paddingTop: 4,
+    paddingBottom: 24
+  },
+  emptyWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  emptyText: {
+    color: colors.textMuted
+  }
+});
+
+
+
+================ FILE: /Users/evabilet/MyApp/app/splash.tsx ================
+import { useEffect, useRef } from "react";
+import { Animated, Easing, StyleSheet, View } from "react-native";
+import { useRouter } from "expo-router";
+import { colors } from "../src/theme/colors";
+
+export default function SplashScreen() {
+  const router = useRouter();
+  const spinValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(spinValue, {
+        toValue: 1,
+        duration: 1000,
+        easing: Easing.linear,
+        useNativeDriver: true
+      })
+    ).start();
+
+    const timer = setTimeout(() => {
+      router.replace("/(tabs)");
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [router, spinValue]);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"]
+  });
+
+  return (
+    <View style={styles.container}>
+      <Animated.View style={[styles.loader, { transform: [{ rotate: spin }] }]} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.panel,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  loader: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 4,
+    borderColor: colors.accent,
+    borderTopColor: "transparent"
+  }
+});
+
+
+
+================ FILE: /Users/evabilet/MyApp/app/_layout.tsx ================
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { FavoritesProvider } from "../src/state/FavoritesContext";
+
+export default function RootLayout() {
+  return (
+    <FavoritesProvider>
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+        <Stack
+          initialRouteName="splash"
+          screenOptions={{ headerShown: false }}
+        />
+      </SafeAreaProvider>
+    </FavoritesProvider>
+  );
+}
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/app.json ================
+(binary file skipped)
+
+
+
+================ FILE: /Users/evabilet/MyApp/dump_files.sh ================
+#!/bin/bash
+OUT="project_dump.txt"
+echo "==== package.json ====" > "$OUT"
+sed -n '1,120p' package.json >> "$OUT" 2>/dev/null
+
+echo -e "\n==== app/_layout.tsx ====" >> "$OUT"
+sed -n '1,120p' app/_layout.tsx >> "$OUT" 2>/dev/null
+
+echo -e "\n==== app/index.tsx ====" >> "$OUT"
+sed -n '1,120p' app/index.tsx >> "$OUT" 2>/dev/null
+
+echo -e "\n==== app/splash.tsx ====" >> "$OUT"
+sed -n '1,120p' app/splash.tsx >> "$OUT" 2>/dev/null
+
+echo -e "\n==== src/theme/colors.ts ====" >> "$OUT"
+sed -n '1,120p' src/theme/colors.ts >> "$OUT" 2>/dev/null
+
+echo -e "\n==== app.json ====" >> "$OUT"
+sed -n '1,120p' app.json >> "$OUT" 2>/dev/null
+
+echo -e "\nСодержимое сохранено в файл: $OUT"
+
+
+
+================ FILE: /Users/evabilet/MyApp/constants/theme.ts ================
+/**
+ * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
+ * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ */
+
+import { Platform } from 'react-native';
+
+const tintColorLight = '#0a7ea4';
+const tintColorDark = '#fff';
+
+export const Colors = {
+  light: {
+    text: '#11181C',
+    background: '#fff',
+    tint: tintColorLight,
+    icon: '#687076',
+    tabIconDefault: '#687076',
+    tabIconSelected: tintColorLight,
+  },
+  dark: {
+    text: '#ECEDEE',
+    background: '#151718',
+    tint: tintColorDark,
+    icon: '#9BA1A6',
+    tabIconDefault: '#9BA1A6',
+    tabIconSelected: tintColorDark,
+  },
+};
+
+export const Fonts = Platform.select({
+  ios: {
+    /** iOS `UIFontDescriptorSystemDesignDefault` */
+    sans: 'system-ui',
+    /** iOS `UIFontDescriptorSystemDesignSerif` */
+    serif: 'ui-serif',
+    /** iOS `UIFontDescriptorSystemDesignRounded` */
+    rounded: 'ui-rounded',
+    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
+    mono: 'ui-monospace',
+  },
+  default: {
+    sans: 'normal',
+    serif: 'serif',
+    rounded: 'normal',
+    mono: 'monospace',
+  },
+  web: {
+    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    serif: "Georgia, 'Times New Roman', serif",
+    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
+    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+  },
+});
+
+
+
+================ FILE: /Users/evabilet/MyApp/code_dump.txt ================
+================ app/(tabs)/_layout.tsx ================
+import { Tabs } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { colors } from "../../src/theme/colors";
+
+export default function TabsLayout() {
+  return (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarStyle: {
+          backgroundColor: colors.panel,
+          borderTopColor: colors.line
+        }
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "Главная",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" color={color} size={size} />
+          )
+        }}
+      />
+      <Tabs.Screen
+        name="favorites"
+        options={{
+          title: "Любимое",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="heart-outline" color={color} size={size} />
+          )
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Профиль",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" color={color} size={size} />
+          )
+        }}
+      />
+    </Tabs>
+  );
+}
+
+
+================ app/(tabs)/explore.tsx ================
+import { Image } from 'expo-image';
+import { Platform, StyleSheet } from 'react-native';
+
+import { Collapsible } from '@/components/ui/collapsible';
+import { ExternalLink } from '@/components/external-link';
+import ParallaxScrollView from '@/components/parallax-scroll-view';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Fonts } from '@/constants/theme';
+
+export default function TabTwoScreen() {
+  return (
+    <ParallaxScrollView
+      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
+      headerImage={
+        <IconSymbol
+          size={310}
+          color="#808080"
+          name="chevron.left.forwardslash.chevron.right"
+          style={styles.headerImage}
+        />
+      }>
+      <ThemedView style={styles.titleContainer}>
+        <ThemedText
+          type="title"
+          style={{
+            fontFamily: Fonts.rounded,
+          }}>
+          Explore
+        </ThemedText>
+      </ThemedView>
+      <ThemedText>This app includes example code to help you get started.</ThemedText>
+      <Collapsible title="File-based routing">
+        <ThemedText>
+          This app has two screens:{' '}
+          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
+          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
+        </ThemedText>
+        <ThemedText>
+          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
+          sets up the tab navigator.
+        </ThemedText>
+        <ExternalLink href="https://docs.expo.dev/router/introduction">
+          <ThemedText type="link">Learn more</ThemedText>
+        </ExternalLink>
+      </Collapsible>
+      <Collapsible title="Android, iOS, and web support">
+        <ThemedText>
+          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
+          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
+        </ThemedText>
+      </Collapsible>
+      <Collapsible title="Images">
+        <ThemedText>
+          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
+          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
+          different screen densities
+        </ThemedText>
+        <Image
+          source={require('@/assets/images/react-logo.png')}
+          style={{ width: 100, height: 100, alignSelf: 'center' }}
+        />
+        <ExternalLink href="https://reactnative.dev/docs/images">
+          <ThemedText type="link">Learn more</ThemedText>
+        </ExternalLink>
+      </Collapsible>
+      <Collapsible title="Light and dark mode components">
+        <ThemedText>
+          This template has light and dark mode support. The{' '}
+          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
+          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
+        </ThemedText>
+        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
+          <ThemedText type="link">Learn more</ThemedText>
+        </ExternalLink>
+      </Collapsible>
+      <Collapsible title="Animations">
+        <ThemedText>
+          This template includes an example of an animated component. The{' '}
+          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
+          the powerful{' '}
+          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
+            react-native-reanimated
+          </ThemedText>{' '}
+          library to create a waving hand animation.
+        </ThemedText>
+        {Platform.select({
+          ios: (
+            <ThemedText>
+              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
+              component provides a parallax effect for the header image.
+            </ThemedText>
+          ),
+        })}
+      </Collapsible>
+    </ParallaxScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  headerImage: {
+    color: '#808080',
+    bottom: -90,
+    left: -35,
+    position: 'absolute',
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+});
+
+
+================ app/(tabs)/favorites.tsx ================
+import { View, Text, StyleSheet, FlatList } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { colors } from "../../src/theme/colors";
+import { useFavorites } from "../../src/state/FavoritesContext";
+import { mockShows } from "../../src/data/mockShows";
+import { ShowCard } from "../../src/components/ShowCard";
+
+export default function FavoritesScreen() {
+  const { favorites, toggleFavorite, isFavorite } = useFavorites();
+
+  const favoriteShows = mockShows.filter((show) => favorites.includes(show.id));
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.container}>
+        <Text style={styles.title}>Любимые спектакли</Text>
+
+        {favoriteShows.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyText}>Пока ничего нет в любимом</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={favoriteShows}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => (
+              <ShowCard
+                show={item}
+                isFavorite={isFavorite(item.id)}
+                onToggleFavorite={() => toggleFavorite(item.id)}
+              />
+            )}
+          />
+        )}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, paddingTop: 4 },
+  title: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: "700",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4
+  },
+  listContent: {
+    paddingTop: 4,
+    paddingBottom: 24
+  },
+  emptyWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  emptyText: {
+    color: colors.textMuted
+  }
+});
+
+
+================ app/(tabs)/index.tsx ================
+import { useMemo, useState } from "react";
+import { View, Text, StyleSheet, FlatList } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { colors } from "../../src/theme/colors";
+import { SearchBar } from "../../src/components/SearchBar";
+import { FilterChips } from "../../src/components/FilterChips";
+import { ShowCard } from "../../src/components/ShowCard";
+import { mockShows } from "../../src/data/mockShows";
+import { useFavorites } from "../../src/state/FavoritesContext";
+
+export default function HomeScreen() {
+  const [query, setQuery] = useState("");
+  const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+  const [selectedTheatre, setSelectedTheatre] = useState<string | null>(null);
+
+  const { favorites, toggleFavorite, isFavorite } = useFavorites();
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return mockShows.filter((show) => {
+      const matchesQuery =
+        !q ||
+        show.title.toLowerCase().includes(q) ||
+        show.theatre.toLowerCase().includes(q);
+      const matchesGenre = !selectedGenre || show.genre === selectedGenre;
+      const matchesTheatre = !selectedTheatre || show.theatre === selectedTheatre;
+      return matchesQuery && matchesGenre && matchesTheatre;
+    });
+  }, [query, selectedGenre, selectedTheatre]);
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.container}>
+        <Text style={styles.title}>Спектакли в вашем городе</Text>
+
+        <SearchBar value={query} onChange={setQuery} />
+
+        <FilterChips
+          onPressDate={() => {
+            // TODO: окно выбора даты
+          }}
+          onPressGenre={() => {
+            // TODO: маленькое окошко выбора жанров
+          }}
+          onPressTheatre={() => {
+            // TODO: выбор театра
+          }}
+        />
+
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => (
+            <ShowCard
+              show={item}
+              isFavorite={isFavorite(item.id)}
+              onToggleFavorite={() => toggleFavorite(item.id)}
+            />
+          )}
+        />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, paddingTop: 4 },
+  title: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: "700",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4
+  },
+  listContent: {
+    paddingTop: 4,
+    paddingBottom: 24
+  }
+});
+
+
+================ app/(tabs)/profile.tsx ================
+import { View, Text, StyleSheet } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { colors } from "../../src/theme/colors";
+
+export default function ProfileScreen() {
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.container}>
+        <Text style={styles.text}>Профиль пользователя (заглушка)</Text>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, alignItems: "center", justifyContent: "center" },
+  text: { color: colors.text }
+});
+
+
+================ app/_layout.tsx ================
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { FavoritesProvider } from "../src/state/FavoritesContext";
+
+export default function RootLayout() {
+  return (
+    <FavoritesProvider>
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+        <Stack
+          initialRouteName="splash"
+          screenOptions={{ headerShown: false }}
+        />
+      </SafeAreaProvider>
+    </FavoritesProvider>
+  );
+}
+
+
+================ app/index.tsx ================
+export { default } from "./splash";
+
+
+================ app/splash.tsx ================
+import { useEffect, useRef } from "react";
+import { Animated, Easing, StyleSheet, View } from "react-native";
+import { useRouter } from "expo-router";
+import { colors } from "../src/theme/colors";
+
+export default function SplashScreen() {
+  const router = useRouter();
+  const spinValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(spinValue, {
+        toValue: 1,
+        duration: 1000,
+        easing: Easing.linear,
+        useNativeDriver: true
+      })
+    ).start();
+
+    const timer = setTimeout(() => {
+      router.replace("/(tabs)");
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [router, spinValue]);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"]
+  });
+
+  return (
+    <View style={styles.container}>
+      <Animated.View style={[styles.loader, { transform: [{ rotate: spin }] }]} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.panel,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  loader: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 4,
+    borderColor: colors.accent,
+    borderTopColor: "transparent"
+  }
+});
+
+
+================ src/components/FilterChips.tsx ================
+import { FC } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { colors } from "../theme/colors";
+
+type Props = {
+  onPressDate: () => void;
+  onPressGenre: () => void;
+  onPressTheatre: () => void;
+};
+
+const Chip: FC<{ label: string; onPress: () => void }> = ({ label, onPress }) => (
+  <Pressable style={styles.chip} onPress={onPress}>
+    <Text style={styles.chipText}>{label}</Text>
+  </Pressable>
+);
+
+export const FilterChips: FC<Props> = ({ onPressDate, onPressGenre, onPressTheatre }) => (
+  <View style={styles.row}>
+    <Chip label="Дата" onPress={onPressDate} />
+    <Chip label="Жанры" onPress={onPressGenre} />
+    <Chip label="Театр" onPress={onPressTheatre} />
+  </View>
+);
+
+const styles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    gap: 8,
+    paddingVertical: 8
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.line
+  },
+  chipText: {
+    color: colors.text,
+    fontSize: 14
+  }
+});
+
+
+================ src/components/SearchBar.tsx ================
+import { FC } from "react";
+import { StyleSheet, TextInput, View } from "react-native";
+import { colors } from "../theme/colors";
+
+type Props = {
+  value: string;
+  onChange: (text: string) => void;
+  onFocus?: () => void;
+};
+
+export const SearchBar: FC<Props> = ({ value, onChange, onFocus }) => {
+  return (
+    <View style={styles.wrap}>
+      <TextInput
+        placeholder="Поиск спектаклей…"
+        placeholderTextColor={colors.placeholder}
+        value={value}
+        onChangeText={onChange}
+        onFocus={onFocus}
+        returnKeyType="search"
+        style={styles.input}
+      />
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  wrap: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4
+  },
+  input: {
+    backgroundColor: colors.panel,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: colors.text,
+    borderWidth: 1,
+    borderColor: colors.line
+  }
+});
+
+
+================ src/components/ShowCard.tsx ================
+import { FC } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  Image,
+  GestureResponderEvent
+} from "react-native";
+import { colors } from "../theme/colors";
+import type { Show } from "../data/mockShows";
+
+type Props = {
+  show: Show;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
+  onPress?: () => void;
+};
+
+export const ShowCard: FC<Props> = ({ show, isFavorite, onToggleFavorite, onPress }) => {
+  const handleHeartPress = (e: GestureResponderEvent) => {
+    e.stopPropagation();
+    onToggleFavorite();
+  };
+
+  return (
+    <Pressable style={styles.card} onPress={onPress}>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>{show.title}</Text>
+        <Pressable onPress={handleHeartPress} hitSlop={10}>
+          <Text style={[styles.heart, isFavorite && styles.heartActive]}>
+            ♥
+          </Text>
+        </Pressable>
+      </View>
+
+      <Text style={styles.theatre}>{show.theatre}</Text>
+      <Text style={styles.date}>{show.date}</Text>
+
+      {show.images && show.images.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          pagingEnabled
+          style={styles.imagesRow}
+          contentContainerStyle={styles.imagesContent}
+        >
+          {show.images.map((uri, idx) => (
+            <Image key={idx} source={{ uri }} style={styles.image} />
+          ))}
+        </ScrollView>
+      )}
+    </Pressable>
+  );
+};
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: colors.panel,
+    borderRadius: 14,
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.line
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4
+  },
+  title: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "600",
+    flexShrink: 1,
+    paddingRight: 8
+  },
+  heart: {
+    fontSize: 20,
+    color: colors.textMuted
+  },
+  heartActive: {
+    color: "#ef4444"
+  },
+  theatre: { color: colors.textMuted, marginBottom: 2 },
+  date: { color: colors.text, fontSize: 14, marginBottom: 6 },
+  imagesRow: {
+    marginTop: 6
+  },
+  imagesContent: {
+    gap: 8
+  },
+  image: {
+    width: 180,
+    height: 120,
+    borderRadius: 10
+  }
+});
+
+
+================ src/context/FavoritesContext.tsx ================
+import { createContext, useContext, useMemo, useState, ReactNode } from "react";
+
+type FavoritesContextValue = {
+  favorites: string[];
+  toggleFavorite: (id: string) => void;
+};
+
+const FavoritesContext = createContext<FavoritesContextValue | undefined>(undefined);
+
+export function FavoritesProvider({ children }: { children: ReactNode }) {
+  const [favorites, setFavorites] = useState<string[]>([]);
+
+  const value = useMemo(
+    () => ({
+      favorites,
+      toggleFavorite: (id: string) => {
+        setFavorites((prev) =>
+          prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+        );
+      }
+    }),
+    [favorites]
+  );
+
+  return <FavoritesContext.Provider value={value}>{children}</FavoritesContext.Provider>;
+}
+
+export function useFavorites() {
+  const ctx = useContext(FavoritesContext);
+  if (!ctx) {
+    throw new Error("useFavorites must be used within FavoritesProvider");
+  }
+  return ctx;
+}
+
+
+================ src/data/mockShows.ts ================
+export type Show = {
+  id: string;
+  title: string;
+  theatre: string;
+  date: string;     // ISO или человекочитаемая дата
+  genre: string;
+  images: string[];
+};
+
+export const mockShows: Show[] = [
+  {
+    id: "1",
+    title: "Ревизор",
+    theatre: "Драматический театр",
+    date: "2025-12-01 19:00",
+    genre: "комедия",
+    images: [
+      "https://images.unsplash.com/photo-1515165562835-c4c9e0737eaa?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1485567702529-2b76d104e58f?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1485567724416-0a3c7a5b2e8c?q=80&w=1200&auto=format&fit=crop"
+    ]
+  },
+  {
+    id: "2",
+    title: "Чайка",
+    theatre: "Театр им. Чехова",
+    date: "2025-12-02 18:30",
+    genre: "драма",
+    images: [
+      "https://images.unsplash.com/photo-1438109491414-7198515b166b?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1515165562835-c4c9e0737eaa?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1497032628192-86f99bcd76bc?q=80&w=1200&auto=format&fit=crop"
+    ]
+  },
+  {
+    id: "3",
+    title: "Щелкунчик",
+    theatre: "Музыкальный театр",
+    date: "2025-12-03 19:00",
+    genre: "балет",
+    images: [
+      "https://images.unsplash.com/photo-1461782290329-3f723aa707a4?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1512427691650-1e0c2f9a81b3?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1512428559087-560fa5ceab42?q=80&w=1200&auto=format&fit=crop"
+    ]
+  }
+];
+
+
+================ src/state/FavoritesContext.tsx ================
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+
+type FavoritesContextType = {
+  favorites: string[];
+  toggleFavorite: (id: string) => void;
+  isFavorite: (id: string) => boolean;
+};
+
+const FavoritesContext = createContext<FavoritesContextType | undefined>(undefined);
+
+export function FavoritesProvider({ children }: { children: ReactNode }) {
+  const [favorites, setFavorites] = useState<string[]>([]);
+
+  const toggleFavorite = useCallback((id: string) => {
+    setFavorites((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      favorites,
+      toggleFavorite,
+      isFavorite: (id: string) => favorites.includes(id)
+    }),
+    [favorites, toggleFavorite]
+  );
+
+  return <FavoritesContext.Provider value={value}>{children}</FavoritesContext.Provider>;
+}
+
+export function useFavorites() {
+  const ctx = useContext(FavoritesContext);
+  if (!ctx) {
+    throw new Error("useFavorites must be used within FavoritesProvider");
+  }
+  return ctx;
+}
+
+
+================ src/theme/colors.ts ================
+export const colors = {
+  bg: "#0B1220",
+  panel: "#111827",
+  line: "#1F2937",
+  text: "#FFFFFF",
+  textMuted: "#D1D5DB",
+  placeholder: "#9CA3AF",
+  accent: "#22d3ee"
+};
+
+
+
+
+
+================ FILE: /Users/evabilet/MyApp/make_dump.sh ================
+#!/bin/bash
+
+# =======================================================
+#  Clean Project Dumper
+#  Собирает только код проекта в один файл
+# =======================================================
+
+OUT="project_clean_dump_$(date +%Y-%m-%d_%H-%M-%S).txt"
+> "$OUT"
+
+echo "=== package.json ===" >> "$OUT"
+sed -n '1,200p' package.json >> "$OUT" 2>/dev/null
+echo >> "$OUT"
+
+dump_dir() {
+  local DIR="$1"
+  if [ -d "$DIR" ]; then
+    find "$DIR" -type f \
+      \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.json" \) \
+      | sort \
+      | while read -r FILE; do
+          echo -e "\n================ $FILE ================\n" >> "$OUT"
+          sed -n '1,400p' "$FILE" >> "$OUT" 2>/dev/null
+        done
+  fi
+}
+
+dump_dir "app"
+dump_dir "src"
+
+echo -e "\n✨ Готово! Дамп сохранён в файл: $OUT"
+
+
+
+================ FILE: /Users/evabilet/MyApp/backend/index.js ================
+const express = require("express");
+const cors = require("cors");
+
+const app = express();
+const PORT = 3000;
+
+app.use(cors());
+app.use(express.json());
+
+// Заглушечные данные спектаклей (та же структура, что в src/data/mockShows.ts)
+const shows = [
+  {
+    id: "1",
+    title: "Ревизор",
+    theatre: "Драматический театр",
+    date: "2025-12-01 19:00",
+    genre: "комедия",
+    images: [
+      "https://images.unsplash.com/photo-1515165562835-c4c9e0737eaa?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1485567702529-2b76d104e58f?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1485567724416-0a3c7a5b2e8c?q=80&w=1200&auto=format&fit=crop"
+    ]
+  },
+  {
+    id: "2",
+    title: "Чайка",
+    theatre: "Театр им. Чехова",
+    date: "2025-12-02 18:30",
+    genre: "драма",
+    images: [
+      "https://images.unsplash.com/photo-1438109491414-7198515b166b?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1515165562835-c4c9e0737eaa?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1497032628192-86f99bcd76bc?q=80&w=1200&auto=format&fit=crop"
+    ]
+  },
+  {
+    id: "3",
+    title: "Щелкунчик",
+    theatre: "Музыкальный театр",
+    date: "2025-12-03 19:00",
+    genre: "балет",
+    images: [
+      "https://images.unsplash.com/photo-1461782290329-3f723aa707a4?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1512427691650-1e0c2f9a81b3?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1512428559087-560fa5ceab42?q=80&w=1200&auto=format&fit=crop"
+    ]
+  }
+];
+
+// список всех спектаклей
+app.get("/shows", (req, res) => {
+  res.json(shows);
+});
+
+// один спектакль по id
+app.get("/shows/:id", (req, res) => {
+  const show = shows.find((s) => s.id === req.params.id);
+  if (!show) {
+    return res.status(404).json({ error: "Show not found" });
+  }
+  res.json(show);
+});
+
+// заглушки для театров и жанров (на будущее)
+app.get("/theatres", (req, res) => {
+  const theatres = [...new Set(shows.map((s) => s.theatre))];
+  res.json(theatres);
+});
+
+app.get("/genres", (req, res) => {
+  const genres = [...new Set(shows.map((s) => s.genre))];
+  res.json(genres);
+});
+
+app.listen(PORT, () => {
+  console.log(`API server is running on http://localhost:${PORT}`);
+});
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/backend/package-lock.json ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/backend/package.json ================
+(binary file skipped)
+
+
+
+================ FILE: /Users/evabilet/MyApp/README.md ================
+# Welcome to your Expo app 👋
+
+This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+
+## Get started
+
+1. Install dependencies
+
+   ```bash
+   npm install
+   ```
+
+2. Start the app
+
+   ```bash
+   npx expo start
+   ```
+
+In the output, you'll find options to open the app in a
+
+- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
+- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
+- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
+- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+
+You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+
+## Get a fresh project
+
+When you're ready, run:
+
+```bash
+npm run reset-project
+```
+
+This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+
+## Learn more
+
+To learn more about developing your project with Expo, look at the following resources:
+
+- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
+- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+
+## Join the community
+
+Join our community of developers creating universal apps.
+
+- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
+- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+
+
+================ FILE: /Users/evabilet/MyApp/components/themed-text.tsx ================
+import { StyleSheet, Text, type TextProps } from 'react-native';
+
+import { useThemeColor } from '@/hooks/use-theme-color';
+
+export type ThemedTextProps = TextProps & {
+  lightColor?: string;
+  darkColor?: string;
+  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
+};
+
+export function ThemedText({
+  style,
+  lightColor,
+  darkColor,
+  type = 'default',
+  ...rest
+}: ThemedTextProps) {
+  const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
+
+  return (
+    <Text
+      style={[
+        { color },
+        type === 'default' ? styles.default : undefined,
+        type === 'title' ? styles.title : undefined,
+        type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
+        type === 'subtitle' ? styles.subtitle : undefined,
+        type === 'link' ? styles.link : undefined,
+        style,
+      ]}
+      {...rest}
+    />
+  );
+}
+
+const styles = StyleSheet.create({
+  default: {
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  defaultSemiBold: {
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '600',
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    lineHeight: 32,
+  },
+  subtitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  link: {
+    lineHeight: 30,
+    fontSize: 16,
+    color: '#0a7ea4',
+  },
+});
+
+
+
+================ FILE: /Users/evabilet/MyApp/components/ui/icon-symbol.ios.tsx ================
+import { SymbolView, SymbolViewProps, SymbolWeight } from 'expo-symbols';
+import { StyleProp, ViewStyle } from 'react-native';
+
+export function IconSymbol({
+  name,
+  size = 24,
+  color,
+  style,
+  weight = 'regular',
+}: {
+  name: SymbolViewProps['name'];
+  size?: number;
+  color: string;
+  style?: StyleProp<ViewStyle>;
+  weight?: SymbolWeight;
+}) {
+  return (
+    <SymbolView
+      weight={weight}
+      tintColor={color}
+      resizeMode="scaleAspectFit"
+      name={name}
+      style={[
+        {
+          width: size,
+          height: size,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+
+
+================ FILE: /Users/evabilet/MyApp/components/ui/icon-symbol.tsx ================
+// Fallback for using MaterialIcons on Android and web.
+
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { SymbolWeight, SymbolViewProps } from 'expo-symbols';
+import { ComponentProps } from 'react';
+import { OpaqueColorValue, type StyleProp, type TextStyle } from 'react-native';
+
+type IconMapping = Record<SymbolViewProps['name'], ComponentProps<typeof MaterialIcons>['name']>;
+type IconSymbolName = keyof typeof MAPPING;
+
+/**
+ * Add your SF Symbols to Material Icons mappings here.
+ * - see Material Icons in the [Icons Directory](https://icons.expo.fyi).
+ * - see SF Symbols in the [SF Symbols](https://developer.apple.com/sf-symbols/) app.
+ */
+const MAPPING = {
+  'house.fill': 'home',
+  'paperplane.fill': 'send',
+  'chevron.left.forwardslash.chevron.right': 'code',
+  'chevron.right': 'chevron-right',
+} as IconMapping;
+
+/**
+ * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.
+ * This ensures a consistent look across platforms, and optimal resource usage.
+ * Icon `name`s are based on SF Symbols and require manual mapping to Material Icons.
+ */
+export function IconSymbol({
+  name,
+  size = 24,
+  color,
+  style,
+}: {
+  name: IconSymbolName;
+  size?: number;
+  color: string | OpaqueColorValue;
+  style?: StyleProp<TextStyle>;
+  weight?: SymbolWeight;
+}) {
+  return <MaterialIcons color={color} size={size} name={MAPPING[name]} style={style} />;
+}
+
+
+
+================ FILE: /Users/evabilet/MyApp/components/ui/collapsible.tsx ================
+import { PropsWithChildren, useState } from 'react';
+import { StyleSheet, TouchableOpacity } from 'react-native';
+
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+
+export function Collapsible({ children, title }: PropsWithChildren & { title: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const theme = useColorScheme() ?? 'light';
+
+  return (
+    <ThemedView>
+      <TouchableOpacity
+        style={styles.heading}
+        onPress={() => setIsOpen((value) => !value)}
+        activeOpacity={0.8}>
+        <IconSymbol
+          name="chevron.right"
+          size={18}
+          weight="medium"
+          color={theme === 'light' ? Colors.light.icon : Colors.dark.icon}
+          style={{ transform: [{ rotate: isOpen ? '90deg' : '0deg' }] }}
+        />
+
+        <ThemedText type="defaultSemiBold">{title}</ThemedText>
+      </TouchableOpacity>
+      {isOpen && <ThemedView style={styles.content}>{children}</ThemedView>}
+    </ThemedView>
+  );
+}
+
+const styles = StyleSheet.create({
+  heading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  content: {
+    marginTop: 6,
+    marginLeft: 24,
+  },
+});
+
+
+
+================ FILE: /Users/evabilet/MyApp/components/hello-wave.tsx ================
+import Animated from 'react-native-reanimated';
+
+export function HelloWave() {
+  return (
+    <Animated.Text
+      style={{
+        fontSize: 28,
+        lineHeight: 32,
+        marginTop: -6,
+        animationName: {
+          '50%': { transform: [{ rotate: '25deg' }] },
+        },
+        animationIterationCount: 4,
+        animationDuration: '300ms',
+      }}>
+      👋
+    </Animated.Text>
+  );
+}
+
+
+
+================ FILE: /Users/evabilet/MyApp/components/parallax-scroll-view.tsx ================
+import type { PropsWithChildren, ReactElement } from 'react';
+import { StyleSheet } from 'react-native';
+import Animated, {
+  interpolate,
+  useAnimatedRef,
+  useAnimatedStyle,
+  useScrollOffset,
+} from 'react-native-reanimated';
+
+import { ThemedView } from '@/components/themed-view';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeColor } from '@/hooks/use-theme-color';
+
+const HEADER_HEIGHT = 250;
+
+type Props = PropsWithChildren<{
+  headerImage: ReactElement;
+  headerBackgroundColor: { dark: string; light: string };
+}>;
+
+export default function ParallaxScrollView({
+  children,
+  headerImage,
+  headerBackgroundColor,
+}: Props) {
+  const backgroundColor = useThemeColor({}, 'background');
+  const colorScheme = useColorScheme() ?? 'light';
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
+  const scrollOffset = useScrollOffset(scrollRef);
+  const headerAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        {
+          translateY: interpolate(
+            scrollOffset.value,
+            [-HEADER_HEIGHT, 0, HEADER_HEIGHT],
+            [-HEADER_HEIGHT / 2, 0, HEADER_HEIGHT * 0.75]
+          ),
+        },
+        {
+          scale: interpolate(scrollOffset.value, [-HEADER_HEIGHT, 0, HEADER_HEIGHT], [2, 1, 1]),
+        },
+      ],
+    };
+  });
+
+  return (
+    <Animated.ScrollView
+      ref={scrollRef}
+      style={{ backgroundColor, flex: 1 }}
+      scrollEventThrottle={16}>
+      <Animated.View
+        style={[
+          styles.header,
+          { backgroundColor: headerBackgroundColor[colorScheme] },
+          headerAnimatedStyle,
+        ]}>
+        {headerImage}
+      </Animated.View>
+      <ThemedView style={styles.content}>{children}</ThemedView>
+    </Animated.ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    height: HEADER_HEIGHT,
+    overflow: 'hidden',
+  },
+  content: {
+    flex: 1,
+    padding: 32,
+    gap: 16,
+    overflow: 'hidden',
+  },
+});
+
+
+
+================ FILE: /Users/evabilet/MyApp/components/themed-view.tsx ================
+import { View, type ViewProps } from 'react-native';
+
+import { useThemeColor } from '@/hooks/use-theme-color';
+
+export type ThemedViewProps = ViewProps & {
+  lightColor?: string;
+  darkColor?: string;
+};
+
+export function ThemedView({ style, lightColor, darkColor, ...otherProps }: ThemedViewProps) {
+  const backgroundColor = useThemeColor({ light: lightColor, dark: darkColor }, 'background');
+
+  return <View style={[{ backgroundColor }, style]} {...otherProps} />;
+}
+
+
+
+================ FILE: /Users/evabilet/MyApp/components/external-link.tsx ================
+import { Href, Link } from 'expo-router';
+import { openBrowserAsync, WebBrowserPresentationStyle } from 'expo-web-browser';
+import { type ComponentProps } from 'react';
+
+type Props = Omit<ComponentProps<typeof Link>, 'href'> & { href: Href & string };
+
+export function ExternalLink({ href, ...rest }: Props) {
+  return (
+    <Link
+      target="_blank"
+      {...rest}
+      href={href}
+      onPress={async (event) => {
+        if (process.env.EXPO_OS !== 'web') {
+          // Prevent the default behavior of linking to the default browser on native.
+          event.preventDefault();
+          // Open the link in an in-app browser.
+          await openBrowserAsync(href, {
+            presentationStyle: WebBrowserPresentationStyle.AUTOMATIC,
+          });
+        }
+      }}
+    />
+  );
+}
+
+
+
+================ FILE: /Users/evabilet/MyApp/components/haptic-tab.tsx ================
+import { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
+import { PlatformPressable } from '@react-navigation/elements';
+import * as Haptics from 'expo-haptics';
+
+export function HapticTab(props: BottomTabBarButtonProps) {
+  return (
+    <PlatformPressable
+      {...props}
+      onPressIn={(ev) => {
+        if (process.env.EXPO_OS === 'ios') {
+          // Add a soft haptic feedback when pressing down on the tabs.
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+        props.onPressIn?.(ev);
+      }}
+    />
+  );
+}
+
+
+
+================ FILE: /Users/evabilet/MyApp/.gitignore ================
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+app-example
+
+# generated native folders
+/ios
+/android
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/package-lock.json ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/package.json ================
+(binary file skipped)
+
+
+
+================ FILE: /Users/evabilet/MyApp/hooks/use-color-scheme.web.ts ================
+import { useEffect, useState } from 'react';
+import { useColorScheme as useRNColorScheme } from 'react-native';
+
+/**
+ * To support static rendering, this value needs to be re-calculated on the client side for web
+ */
+export function useColorScheme() {
+  const [hasHydrated, setHasHydrated] = useState(false);
+
+  useEffect(() => {
+    setHasHydrated(true);
+  }, []);
+
+  const colorScheme = useRNColorScheme();
+
+  if (hasHydrated) {
+    return colorScheme;
+  }
+
+  return 'light';
+}
+
+
+
+================ FILE: /Users/evabilet/MyApp/hooks/use-color-scheme.ts ================
+export { useColorScheme } from 'react-native';
+
+
+
+================ FILE: /Users/evabilet/MyApp/hooks/use-theme-color.ts ================
+/**
+ * Learn more about light and dark modes:
+ * https://docs.expo.dev/guides/color-schemes/
+ */
+
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+
+export function useThemeColor(
+  props: { light?: string; dark?: string },
+  colorName: keyof typeof Colors.light & keyof typeof Colors.dark
+) {
+  const theme = useColorScheme() ?? 'light';
+  const colorFromProps = props[theme];
+
+  if (colorFromProps) {
+    return colorFromProps;
+  } else {
+    return Colors[theme][colorName];
+  }
+}
+
+
+
+================ FILE: /Users/evabilet/MyApp/project_dump.txt ================
+==== package.json ====
+{
+  "name": "myapp",
+  "main": "expo-router/entry",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "expo start",
+    "reset-project": "node ./scripts/reset-project.js",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "expo lint"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
+    "@react-navigation/bottom-tabs": "^7.4.0",
+    "@react-navigation/elements": "^2.6.3",
+    "@react-navigation/native": "^7.1.19",
+    "@react-navigation/native-stack": "^7.6.2",
+    "expo": "~54.0.23",
+    "expo-constants": "~18.0.10",
+    "expo-font": "~14.0.9",
+    "expo-haptics": "~15.0.7",
+    "expo-image": "~3.0.10",
+    "expo-linking": "~8.0.8",
+    "expo-router": "~6.0.14",
+    "expo-splash-screen": "~31.0.10",
+    "expo-status-bar": "~3.0.8",
+    "expo-symbols": "~1.0.7",
+    "expo-system-ui": "~6.0.8",
+    "expo-web-browser": "~15.0.9",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-web": "~0.21.0",
+    "react-native-worklets": "0.5.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "eslint": "^9.25.0",
+    "eslint-config-expo": "~10.0.0",
+    "typescript": "~5.9.2"
+  },
+  "private": true,
+  "expo": {
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}
+
+==== app/_layout.tsx ====
+// app/_layout.tsx
+import { Stack } from 'expo-router';
+
+export default function RootLayout() {
+  return (
+    <Stack
+      initialRouteName="splash"     // ⬅️ говорим роутеру: сначала показывай splash
+      screenOptions={{ headerShown: false }}
+    />
+  );
+}
+
+==== app/index.tsx ====
+// app/index.tsx
+export { default } from './splash';
+
+==== app/splash.tsx ====
+// app/splash.tsx
+import { useRouter } from 'expo-router';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
+
+export default function SplashScreen() {
+  const router = useRouter();
+  const spinValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Анимация
+    Animated.loop(
+      Animated.timing(spinValue, {
+        toValue: 1,
+        duration: 1000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+
+    // Переход на главную через 3 секунды
+    const timer = setTimeout(() => {
+      router.replace('/home');
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  return (
+    <View style={styles.container}>
+      <Animated.View style={[styles.loader, { transform: [{ rotate: spin }] }]} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loader: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 4,
+    borderColor: '#A52A2A',
+    borderTopColor: 'transparent',
+  },
+});
+
+==== src/theme/colors.ts ====
+export const colors = {
+  bg: "#0B1220",
+  panel: "#111827",
+  line: "#1F2937",
+  text: "#FFFFFF",
+  textMuted: "#D1D5DB",
+  placeholder: "#9CA3AF",
+  accent: "#22d3ee"
+};
+
+==== app.json ====
+{
+  "expo": {
+    "name": "MyApp",
+    "slug": "myapp",
+    "scheme": "myapp",
+    "orientation": "portrait",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#111827"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": { "supportsTablet": true }
+  }
+}
+
+
+
+================ FILE: /Users/evabilet/MyApp/scripts/reset-project.js ================
+#!/usr/bin/env node
+
+/**
+ * This script is used to reset the project to a blank state.
+ * It deletes or moves the /app, /components, /hooks, /scripts, and /constants directories to /app-example based on user input and creates a new /app directory with an index.tsx and _layout.tsx file.
+ * You can remove the `reset-project` script from package.json and safely delete this file after running it.
+ */
+
+const fs = require("fs");
+const path = require("path");
+const readline = require("readline");
+
+const root = process.cwd();
+const oldDirs = ["app", "components", "hooks", "constants", "scripts"];
+const exampleDir = "app-example";
+const newAppDir = "app";
+const exampleDirPath = path.join(root, exampleDir);
+
+const indexContent = `import { Text, View } from "react-native";
+
+export default function Index() {
+  return (
+    <View
+      style={{
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <Text>Edit app/index.tsx to edit this screen.</Text>
+    </View>
+  );
+}
+`;
+
+const layoutContent = `import { Stack } from "expo-router";
+
+export default function RootLayout() {
+  return <Stack />;
+}
+`;
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
+
+const moveDirectories = async (userInput) => {
+  try {
+    if (userInput === "y") {
+      // Create the app-example directory
+      await fs.promises.mkdir(exampleDirPath, { recursive: true });
+      console.log(`📁 /${exampleDir} directory created.`);
+    }
+
+    // Move old directories to new app-example directory or delete them
+    for (const dir of oldDirs) {
+      const oldDirPath = path.join(root, dir);
+      if (fs.existsSync(oldDirPath)) {
+        if (userInput === "y") {
+          const newDirPath = path.join(root, exampleDir, dir);
+          await fs.promises.rename(oldDirPath, newDirPath);
+          console.log(`➡️ /${dir} moved to /${exampleDir}/${dir}.`);
+        } else {
+          await fs.promises.rm(oldDirPath, { recursive: true, force: true });
+          console.log(`❌ /${dir} deleted.`);
+        }
+      } else {
+        console.log(`➡️ /${dir} does not exist, skipping.`);
+      }
+    }
+
+    // Create new /app directory
+    const newAppDirPath = path.join(root, newAppDir);
+    await fs.promises.mkdir(newAppDirPath, { recursive: true });
+    console.log("\n📁 New /app directory created.");
+
+    // Create index.tsx
+    const indexPath = path.join(newAppDirPath, "index.tsx");
+    await fs.promises.writeFile(indexPath, indexContent);
+    console.log("📄 app/index.tsx created.");
+
+    // Create _layout.tsx
+    const layoutPath = path.join(newAppDirPath, "_layout.tsx");
+    await fs.promises.writeFile(layoutPath, layoutContent);
+    console.log("📄 app/_layout.tsx created.");
+
+    console.log("\n✅ Project reset complete. Next steps:");
+    console.log(
+      `1. Run \`npx expo start\` to start a development server.\n2. Edit app/index.tsx to edit the main screen.${
+        userInput === "y"
+          ? `\n3. Delete the /${exampleDir} directory when you're done referencing it.`
+          : ""
+      }`
+    );
+  } catch (error) {
+    console.error(`❌ Error during script execution: ${error.message}`);
+  }
+};
+
+rl.question(
+  "Do you want to move existing files to /app-example instead of deleting them? (Y/n): ",
+  (answer) => {
+    const userInput = answer.trim().toLowerCase() || "y";
+    if (userInput === "y" || userInput === "n") {
+      moveDirectories(userInput).finally(() => rl.close());
+    } else {
+      console.log("❌ Invalid input. Please enter 'Y' or 'N'.");
+      rl.close();
+    }
+  }
+);
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/tsconfig.json ================
+(binary file skipped)
+
+
+
+================ FILE: /Users/evabilet/MyApp/eslint.config.js ================
+// https://docs.expo.dev/guides/using-eslint/
+const { defineConfig } = require('eslint/config');
+const expoConfig = require('eslint-config-expo/flat');
+
+module.exports = defineConfig([
+  expoConfig,
+  {
+    ignores: ['dist/*'],
+  },
+]);
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/.vscode/settings.json ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/.vscode/extensions.json ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/assets/.DS_Store ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/assets/images/icon.png ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/assets/images/.DS_Store ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/assets/images/partial-react-logo.png ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/assets/images/android-icon-background.png ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/assets/images/react-logo@2x.png ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/assets/images/react-logo@3x.png ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/assets/images/favicon.png ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/assets/images/android-icon-foreground.png ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/assets/images/logo.png ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/assets/images/react-logo.png ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/assets/images/android-icon-monochrome.png ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/assets/images/splash-icon.png ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/assets/splash.png ================
+(binary file skipped)
+
+
+
+================ FILE (binary skipped): /Users/evabilet/MyApp/src/.DS_Store ================
+(binary file skipped)
+
+
+
+================ FILE: /Users/evabilet/MyApp/src/context/FavoritesContext.tsx ================
+import { createContext, useContext, useMemo, useState, ReactNode } from "react";
+
+type FavoritesContextValue = {
+  favorites: string[];
+  toggleFavorite: (id: string) => void;
+};
+
+const FavoritesContext = createContext<FavoritesContextValue | undefined>(undefined);
+
+export function FavoritesProvider({ children }: { children: ReactNode }) {
+  const [favorites, setFavorites] = useState<string[]>([]);
+
+  const value = useMemo(
+    () => ({
+      favorites,
+      toggleFavorite: (id: string) => {
+        setFavorites((prev) =>
+          prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+        );
+      }
+    }),
+    [favorites]
+  );
+
+  return <FavoritesContext.Provider value={value}>{children}</FavoritesContext.Provider>;
+}
+
+export function useFavorites() {
+  const ctx = useContext(FavoritesContext);
+  if (!ctx) {
+    throw new Error("useFavorites must be used within FavoritesProvider");
+  }
+  return ctx;
+}
+
+
+
+================ FILE: /Users/evabilet/MyApp/src/state/FavoritesContext.tsx ================
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+
+type FavoritesContextType = {
+  favorites: string[];
+  toggleFavorite: (id: string) => void;
+  isFavorite: (id: string) => boolean;
+};
+
+const FavoritesContext = createContext<FavoritesContextType | undefined>(undefined);
+
+export function FavoritesProvider({ children }: { children: ReactNode }) {
+  const [favorites, setFavorites] = useState<string[]>([]);
+
+  const toggleFavorite = useCallback((id: string) => {
+    setFavorites((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      favorites,
+      toggleFavorite,
+      isFavorite: (id: string) => favorites.includes(id)
+    }),
+    [favorites, toggleFavorite]
+  );
+
+  return <FavoritesContext.Provider value={value}>{children}</FavoritesContext.Provider>;
+}
+
+export function useFavorites() {
+  const ctx = useContext(FavoritesContext);
+  if (!ctx) {
+    throw new Error("useFavorites must be used within FavoritesProvider");
+  }
+  return ctx;
+}
+
+
+
+================ FILE: /Users/evabilet/MyApp/src/components/FilterModal.tsx ================
+import { FC } from "react";
+import {
+  Modal,
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  TouchableWithoutFeedback,
+  ScrollView
+} from "react-native";
+import { colors } from "../theme/colors";
+
+type Props = {
+  visible: boolean;
+  title: string;
+  options: string[];
+  selectedValue: string | null;
+  onSelect: (value: string | null) => void;
+  onClose: () => void;
+  withReset?: boolean;
+};
+
+export const FilterModal: FC<Props> = ({
+  visible,
+  title,
+  options,
+  selectedValue,
+  onSelect,
+  onClose,
+  withReset = true
+}) => {
+  const handleSelect = (value: string | null) => {
+    onSelect(value);
+    onClose();
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.backdrop} />
+      </TouchableWithoutFeedback>
+
+      <View style={styles.centerWrap}>
+        <View style={styles.panel}>
+          <Text style={styles.title}>{title}</Text>
+
+          <ScrollView style={styles.optionsList}>
+            {withReset && (
+              <Pressable
+                style={styles.option}
+                onPress={() => handleSelect(null)}
+              >
+                <Text style={styles.optionReset}>
+                  Без фильтра
+                </Text>
+              </Pressable>
+            )}
+
+            {options.map((opt) => {
+              const isActive = selectedValue === opt;
+              return (
+                <Pressable
+                  key={opt}
+                  style={[styles.option, isActive && styles.optionActive]}
+                  onPress={() => handleSelect(opt)}
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      isActive && styles.optionTextActive
+                    ]}
+                  >
+                    {opt}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <Pressable style={styles.closeBtn} onPress={onClose}>
+            <Text style={styles.closeText}>Закрыть</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)"
+  },
+  centerWrap: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 24
+  },
+  panel: {
+    backgroundColor: colors.panel,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.line,
+    maxHeight: "70%"
+  },
+  title: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 8
+  },
+  optionsList: {
+    marginVertical: 4
+  },
+  option: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 10
+  },
+  optionActive: {
+    backgroundColor: "#0f172a"
+  },
+  optionText: {
+    color: colors.text,
+    fontSize: 16
+  },
+  optionTextActive: {
+    color: colors.accent,
+    fontWeight: "600"
+  },
+  optionReset: {
+    color: colors.textMuted,
+    fontSize: 14
+  },
+  closeBtn: {
+    marginTop: 8,
+    alignSelf: "flex-end",
+    paddingVertical: 6,
+    paddingHorizontal: 10
+  },
+  closeText: {
+    color: colors.textMuted,
+    fontSize: 14
+  }
+});
+
+
+
+================ FILE: /Users/evabilet/MyApp/src/components/ShowCard.tsx ================
+import { FC } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  Image,
+  GestureResponderEvent
+} from "react-native";
+import { colors } from "../theme/colors";
+import type { Show } from "../data/mockShows";
+
+type Props = {
+  show: Show;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
+  onPress?: () => void;
+};
+
+export const ShowCard: FC<Props> = ({ show, isFavorite, onToggleFavorite, onPress }) => {
+  const handleHeartPress = (e: GestureResponderEvent) => {
+    e.stopPropagation();
+    onToggleFavorite();
+  };
+
+  return (
+    <Pressable style={styles.card} onPress={onPress}>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>{show.title}</Text>
+        <Pressable onPress={handleHeartPress} hitSlop={10}>
+          <Text style={[styles.heart, isFavorite && styles.heartActive]}>
+            ♥
+          </Text>
+        </Pressable>
+      </View>
+
+      <Text style={styles.theatre}>{show.theatre}</Text>
+      <Text style={styles.date}>{show.date}</Text>
+
+      {show.images && show.images.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          pagingEnabled
+          style={styles.imagesRow}
+          contentContainerStyle={styles.imagesContent}
+        >
+          {show.images.map((uri, idx) => (
+            <Image key={idx} source={{ uri }} style={styles.image} />
+          ))}
+        </ScrollView>
+      )}
+    </Pressable>
+  );
+};
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: colors.panel,
+    borderRadius: 14,
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.line
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4
+  },
+  title: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "600",
+    flexShrink: 1,
+    paddingRight: 8
+  },
+  heart: {
+    fontSize: 20,
+    color: colors.textMuted
+  },
+  heartActive: {
+    color: "#ef4444"
+  },
+  theatre: { color: colors.textMuted, marginBottom: 2 },
+  date: { color: colors.text, fontSize: 14, marginBottom: 6 },
+  imagesRow: {
+    marginTop: 6
+  },
+  imagesContent: {
+    gap: 8
+  },
+  image: {
+    width: 180,
+    height: 120,
+    borderRadius: 10
+  }
+});
+
+
+
+================ FILE: /Users/evabilet/MyApp/src/components/SearchBar.tsx ================
+import { FC } from "react";
+import { StyleSheet, TextInput, View } from "react-native";
+import { colors } from "../theme/colors";
+
+type Props = {
+  value: string;
+  onChange: (text: string) => void;
+  onFocus?: () => void;
+};
+
+export const SearchBar: FC<Props> = ({ value, onChange, onFocus }) => {
+  return (
+    <View style={styles.wrap}>
+      <TextInput
+        placeholder="Поиск спектаклей…"
+        placeholderTextColor={colors.placeholder}
+        value={value}
+        onChangeText={onChange}
+        onFocus={onFocus}
+        returnKeyType="search"
+        style={styles.input}
+      />
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  wrap: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4
+  },
+  input: {
+    backgroundColor: colors.panel,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: colors.text,
+    borderWidth: 1,
+    borderColor: colors.line
+  }
+});
+
+
+
+================ FILE: /Users/evabilet/MyApp/src/components/FilterChips.tsx ================
+import { FC } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { colors } from "../theme/colors";
+
+type Props = {
+  onPressDate: () => void;
+  onPressGenre: () => void;
+  onPressTheatre: () => void;
+};
+
+const Chip: FC<{ label: string; onPress: () => void }> = ({ label, onPress }) => (
+  <Pressable style={styles.chip} onPress={onPress}>
+    <Text style={styles.chipText}>{label}</Text>
+  </Pressable>
+);
+
+export const FilterChips: FC<Props> = ({ onPressDate, onPressGenre, onPressTheatre }) => (
+  <View style={styles.row}>
+    <Chip label="Дата" onPress={onPressDate} />
+    <Chip label="Жанры" onPress={onPressGenre} />
+    <Chip label="Театр" onPress={onPressTheatre} />
+  </View>
+);
+
+const styles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    gap: 8,
+    paddingVertical: 8
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.line
+  },
+  chipText: {
+    color: colors.text,
+    fontSize: 14
+  }
+});
+
+
+
+================ FILE: /Users/evabilet/MyApp/src/theme/colors.ts ================
+export const colors = {
+  bg: "#0B1220",
+  panel: "#111827",
+  line: "#1F2937",
+  text: "#FFFFFF",
+  textMuted: "#D1D5DB",
+  placeholder: "#9CA3AF",
+  accent: "#22d3ee"
+};
+
+
+
+================ FILE: /Users/evabilet/MyApp/src/api/client.ts ================
+import type { Show } from "../data/mockShows";
+
+const API_BASE = "http://localhost:3000";
+
+export async function fetchShows(): Promise<Show[]> {
+  try {
+    const res = await fetch(`${API_BASE}/shows`);
+    if (!res.ok) {
+      throw new Error(`HTTP error: ${res.status}`);
+    }
+    const data = await res.json();
+    // можно сделать лёгкую валидацию
+    if (!Array.isArray(data)) {
+      throw new Error("Invalid response format");
+    }
+    return data;
+  } catch (e) {
+    console.warn("Не удалось загрузить спектакли с бэкенда, использую mockShows:", e);
+    const { mockShows } = await import("../data/mockShows");
+    return mockShows;
+  }
+}
+
+
+
+================ FILE: /Users/evabilet/MyApp/src/api/shows.ts ================
+import { mockShows } from "../data/mockShows";
+import type { Show } from "../data/mockShows";
+
+const API_BASE = "http://localhost:3000";
+
+export async function fetchShows(): Promise<Show[]> {
+  try {
+    const res = await fetch(`${API_BASE}/shows`);
+    if (!res.ok) {
+      console.warn("API /shows responded with status", res.status);
+      return mockShows;
+    }
+    const data = await res.json();
+    return data as Show[];
+  } catch (e) {
+    console.warn("Failed to fetch /shows, falling back to mockShows", e);
+    return mockShows;
+  }
+}
+
+
+
+================ FILE: /Users/evabilet/MyApp/src/data/mockShows.ts ================
+export type Show = {
+  id: string;
+  title: string;
+  theatre: string;
+  date: string;     // ISO или человекочитаемая дата
+  genre: string;
+  images: string[];
+};
+
+export const mockShows: Show[] = [
+  {
+    id: "1",
+    title: "Ревизор",
+    theatre: "Городской драматический театр",
+    date: "2025-12-01 19:00",
+    genre: "комедия",
+    images: [
+      "https://images.unsplash.com/photo-1515165562835-c4c9e0737eaa?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1485567702529-2b76d104e58f?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1512427691650-1e0c2f9a81b3?q=80&w=1200&auto=format&fit=crop"
+    ]
+  },
+  {
+    id: "2",
+    title: "Чайка",
+    theatre: "Театр им. Чехова",
+    date: "2025-12-02 18:30",
+    genre: "драма",
+    images: [
+      "https://images.unsplash.com/photo-1438109491414-7198515b166b?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1497032628192-86f99bcd76bc?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1512428559087-560fa5ceab42?q=80&w=1200&auto=format&fit=crop"
+    ]
+  },
+  {
+    id: "3",
+    title: "Щелкунчик",
+    theatre: "Музыкальный театр",
+    date: "2025-12-03 19:00",
+    genre: "балет",
+    images: [
+      "https://images.unsplash.com/photo-1461782290329-3f723aa707a4?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1512427691650-1e0c2f9a81b3?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1512428559087-560fa5ceab42?q=80&w=1200&auto=format&fit=crop"
+    ]
+  },
+  {
+    id: "4",
+    title: "Город. Ночной трамвай",
+    theatre: "Новый экспериментальный театр",
+    date: "2025-12-04 20:00",
+    genre: "современная драма",
+    images: [
+      "https://images.unsplash.com/photo-1512427691650-1e0c2f9a81b3?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1485567724416-0a3c7a5b2e8c?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1485567702492-837c97c1be0e?q=80&w=1200&auto=format&fit=crop"
+    ]
+  },
+  {
+    id: "5",
+    title: "Маленький принц",
+    theatre: "Театр юного зрителя",
+    date: "2025-12-05 12:00",
+    genre: "сказка",
+    images: [
+      "https://images.unsplash.com/photo-1512428559087-560fa5ceab42?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1512428559087-560fa5ceab42?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1512427691650-1e0c2f9a81b3?q=80&w=1200&auto=format&fit=crop"
+    ]
+  },
+  {
+    id: "6",
+    title: "Ромео и Джульетта",
+    theatre: "Классический театр на Набережной",
+    date: "2025-12-06 19:30",
+    genre: "трагедия",
+    images: [
+      "https://images.unsplash.com/photo-1515165562835-c4c9e0737eaa?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1438109491414-7198515b166b?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1497032628192-86f99bcd76bc?q=80&w=1200&auto=format&fit=crop"
+    ]
+  }
+];
+
+
+
