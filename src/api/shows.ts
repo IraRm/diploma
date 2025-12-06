@@ -1,6 +1,7 @@
 import type { Show } from "../data/mockShows";
 
-const API_BASE = "http://localhost:3000";
+// ТВОЙ MAC КАК СЕРВЕР API
+const API_BASE = "http://192.168.100.220:3000";
 
 export async function fetchShows(): Promise<Show[]> {
   const res = await fetch(`${API_BASE}/shows`);

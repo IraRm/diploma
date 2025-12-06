@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const { fetchShowsFromRzndrama } = require("./scrapeRzndrama");
 
 const app = express();
 const PORT = 3000;
@@ -7,8 +8,8 @@ const PORT = 3000;
 app.use(cors());
 app.use(express.json());
 
-// Заглушечные данные спектаклей (та же структура, что в src/data/mockShows.ts)
-const shows = [
+// Fallback-данные на случай, если сайт недоступен или парсинг ничего не дал
+const fallbackShows = [
   {
     id: "1",
     title: "Ревизор",
@@ -47,31 +48,53 @@ const shows = [
   }
 ];
 
-// список всех спектаклей
-app.get("/shows", (req, res) => {
-  res.json(shows);
-});
+// GET /shows — сначала пробуем сайт, если пусто или ошибка — отдаём fallback
+app.get("/shows", async (req, res) => {
+  try {
+    const scraped = await fetchShowsFromRzndrama();
+    console.log("🔎 scraped shows count:", scraped.length);
 
-// один спектакль по id
-app.get("/shows/:id", (req, res) => {
-  const show = shows.find((s) => s.id === req.params.id);
-  if (!show) {
-    return res.status(404).json({ error: "Show not found" });
+    if (!Array.isArray(scraped) || scraped.length === 0) {
+      console.log("⚠️ scraped пустой, отдаю fallback:", fallbackShows.length);
+      return res.json(fallbackShows);
+    }
+
+    console.log("✅ отдаю scraped:", scraped.length);
+    return res.json(scraped);
+  } catch (err) {
+    console.error("❌ Ошибка при загрузке афиши с rzndrama.ru, отдаю fallback:", err.message);
+    return res.json(fallbackShows);
   }
-  res.json(show);
 });
 
-// заглушки для театров и жанров (на будущее)
-app.get("/theatres", (req, res) => {
-  const theatres = [...new Set(shows.map((s) => s.theatre))];
-  res.json(theatres);
-});
+// GET /shows/:id — то же самое, но по id
+app.get("/shows/:id", async (req, res) => {
+  try {
+    const scraped = await fetchShowsFromRzndrama();
+    let source = "scraped";
+    let show = scraped.find((s) => s.id === req.params.id);
 
-app.get("/genres", (req, res) => {
-  const genres = [...new Set(shows.map((s) => s.genre))];
-  res.json(genres);
+    if (!show) {
+      show = fallbackShows.find((s) => s.id === req.params.id);
+      source = "fallback";
+    }
+
+    if (!show) {
+      return res.status(404).json({ error: "Show not found" });
+    }
+
+    console.log(`ℹ️ отдаю спектакль ${req.params.id} из ${source}`);
+    res.json(show);
+  } catch (err) {
+    console.error("❌ Ошибка при загрузке спектакля, ищу во fallback:", err.message);
+    const show = fallbackShows.find((s) => s.id === req.params.id);
+    if (!show) {
+      return res.status(404).json({ error: "Show not found (fallback)" });
+    }
+    res.json(show);
+  }
 });
 
 app.listen(PORT, () => {
-  console.log(`API server is running on http://localhost:${PORT}`);
+  console.log(`🚀 API server is running on http://localhost:${PORT}`);
 });

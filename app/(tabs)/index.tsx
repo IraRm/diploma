@@ -14,21 +14,19 @@ import { ShowCard } from "../../src/components/ShowCard";
 import { useFavorites } from "../../src/state/FavoritesContext";
 import type { Show } from "../../src/data/mockShows";
 import { FilterModal } from "../../src/components/FilterModal";
+import { fetchShows } from "../../src/api/shows";
 
 export default function HomeScreen() {
   const [query, setQuery] = useState("");
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [selectedTheatre, setSelectedTheatre] = useState<string | null>(null);
+  const [selectedDateFilter, setSelectedDateFilter] = useState<string | null>(null);
 
   const [shows, setShows] = useState<Show[]>([]);
   const [loading, setLoading] = useState(true);
   const [backendOk, setBackendOk] = useState(false);
 
-  const [availableGenres, setAvailableGenres] = useState<string[]>([]);
-  const [availableTheatres, setAvailableTheatres] = useState<string[]>([]);
-
-  const [genreModalVisible, setGenreModalVisible] = useState(false);
-  const [theatreModalVisible, setTheatreModalVisible] = useState(false);
+  const [dateModalVisible, setDateModalVisible] = useState(false);
 
   const { toggleFavorite, isFavorite } = useFavorites();
 
@@ -40,30 +38,17 @@ export default function HomeScreen() {
         setLoading(true);
         setBackendOk(false);
 
-        const res = await fetch("http://localhost:3000/shows");
-        if (!res.ok) throw new Error("Bad status " + res.status);
-
-        const data: Show[] = await res.json();
+        const data = await fetchShows();
         if (cancelled) return;
 
+        console.log(">>> shows from backend:", data.length);
         setShows(data);
         setBackendOk(true);
-
-        // Заполняем список жанров и театров из пришедших спектаклей
-        const genres = Array.from(new Set(data.map((s) => s.genre))).sort();
-        const theatres = Array.from(new Set(data.map((s) => s.theatre))).sort();
-        setAvailableGenres(genres);
-        setAvailableTheatres(theatres);
       } catch (e) {
         if (cancelled) return;
-
-        // Если бэк не ответил — очищаем список и очищаем фильтры
+        console.warn("Не удалось загрузить спектакли с сервера:", e);
         setShows([]);
         setBackendOk(false);
-        setAvailableGenres([]);
-        setAvailableTheatres([]);
-        setSelectedGenre(null);
-        setSelectedTheatre(null);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -78,37 +63,89 @@ export default function HomeScreen() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const now = new Date();
+
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const startOfDayAfterTomorrow = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 2
+    );
+
+    const startOfWeek = new Date(startOfToday);
+    // неделя понедельник–воскресенье
+    const day = (startOfWeek.getDay() + 6) % 7; // 0 = понедельник
+    startOfWeek.setDate(startOfWeek.getDate() - day);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(endOfWeek.getDate() + 7);
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
     return shows.filter((show) => {
       const matchesQuery =
         !q ||
         show.title.toLowerCase().includes(q) ||
         show.theatre.toLowerCase().includes(q);
+
       const matchesGenre = !selectedGenre || show.genre === selectedGenre;
       const matchesTheatre = !selectedTheatre || show.theatre === selectedTheatre;
-      return matchesQuery && matchesGenre && matchesTheatre;
+
+      let matchesDate = true;
+      if (selectedDateFilter) {
+        const showDate = new Date(show.date);
+        if (isNaN(showDate.getTime())) {
+          // если дату не смогли распарсить — прячем её при включённом фильтре по дате
+          matchesDate = false;
+        } else {
+          switch (selectedDateFilter) {
+            case "Сегодня":
+              matchesDate =
+                showDate >= startOfToday && showDate < startOfTomorrow;
+              break;
+            case "Завтра":
+              matchesDate =
+                showDate >= startOfTomorrow &&
+                showDate < startOfDayAfterTomorrow;
+              break;
+            case "На этой неделе":
+              matchesDate =
+                showDate >= startOfWeek && showDate < endOfWeek;
+              break;
+            case "В этом месяце":
+              matchesDate =
+                showDate >= startOfMonth && showDate < startOfNextMonth;
+              break;
+            default:
+              matchesDate = true;
+          }
+        }
+      }
+
+      return matchesQuery && matchesGenre && matchesTheatre && matchesDate;
     });
-  }, [shows, query, selectedGenre, selectedTheatre]);
+  }, [shows, query, selectedGenre, selectedTheatre, selectedDateFilter]);
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
         <Text style={styles.title}>Спектакли в вашем городе</Text>
 
+        {/* если хочешь, debug-строчку можно оставить/убрать */}
+        <Text style={styles.debug}>
+          С сервера пришло: {shows.length} спектаклей
+        </Text>
+
         <SearchBar value={query} onChange={setQuery} />
 
         <FilterChips
-          onPressDate={() => {
-            // TODO: отдельное окно выбора даты
-          }}
+          onPressDate={() => setDateModalVisible(true)}
           onPressGenre={() => {
-            if (availableGenres.length > 0) {
-              setGenreModalVisible(true);
-            }
+            // TODO: модалка жанров
           }}
           onPressTheatre={() => {
-            if (availableTheatres.length > 0) {
-              setTheatreModalVisible(true);
-            }
+            // TODO: модалка театров
           }}
         />
 
@@ -142,24 +179,18 @@ export default function HomeScreen() {
           />
         )}
 
-        {/* Модальное окно выбора жанра */}
         <FilterModal
-          visible={genreModalVisible}
-          title="Выберите жанр"
-          options={availableGenres}
-          selectedValue={selectedGenre}
-          onSelect={setSelectedGenre}
-          onClose={() => setGenreModalVisible(false)}
-        />
-
-        {/* Модальное окно выбора театра */}
-        <FilterModal
-          visible={theatreModalVisible}
-          title="Выберите театр"
-          options={availableTheatres}
-          selectedValue={selectedTheatre}
-          onSelect={setSelectedTheatre}
-          onClose={() => setTheatreModalVisible(false)}
+          visible={dateModalVisible}
+          title="Выбор даты"
+          options={[
+            "Сегодня",
+            "Завтра",
+            "На этой неделе",
+            "В этом месяце"
+          ]}
+          selectedValue={selectedDateFilter}
+          onSelect={(value) => setSelectedDateFilter(value)}
+          onClose={() => setDateModalVisible(false)}
         />
       </View>
     </SafeAreaView>
@@ -175,6 +206,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     paddingHorizontal: 16,
     paddingTop: 8,
+    paddingBottom: 4
+  },
+  debug: {
+    color: colors.textMuted,
+    fontSize: 12,
+    paddingHorizontal: 16,
     paddingBottom: 4
   },
   listContent: {

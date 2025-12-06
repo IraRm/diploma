@@ -1,86 +1,84 @@
-import { View, Text, StyleSheet, Image, Pressable, Alert, ScrollView, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  ScrollView,
+  Pressable,
+  Alert
+} from "react-native";
+import * as Linking from "expo-linking";
 import { colors } from "../../src/theme/colors";
 
-const DEV_EMAIL = "developer@example.com"; // можешь поменять на свой
-
 export default function ProfileScreen() {
-  const handleLoginPress = () => {
-    Alert.alert("Войти", "Здесь позже появится авторизация (по телефону, почте или через госуслуги).");
+  const handleLogin = () => {
+    Alert.alert(
+      "Вход",
+      "Здесь позже появится настоящий экран авторизации."
+    );
   };
 
-  const handleSectionPress = (section: string) => {
-    Alert.alert(section, "Заглушка раздела. Можно будет добавить экраны позже.");
+  const handleContactDeveloper = () => {
+    const email = "dev@example.com"; // сюда потом можно поставить свой настоящий адрес
+    const subject = encodeURIComponent("Обратная связь по приложению театров");
+    const body = encodeURIComponent("Здравствуйте! Хочу предложить...");
+    Linking.openURL(`mailto:${email}?subject=${subject}&body=${body}`);
   };
 
-  const handleWriteDeveloper = async () => {
-    const subject = encodeURIComponent("Отзыв о приложении театров Рязани");
-    const body = encodeURIComponent("Здравствуйте! Пишу из приложения театров Рязани...");
-    const url = `mailto:${DEV_EMAIL}?subject=${subject}&body=${body}`;
-
-    const canOpen = await Linking.canOpenURL(url);
-    if (canOpen) {
-      Linking.openURL(url);
-    } else {
-      Alert.alert(
-        "Не удалось открыть почту",
-        `Напишите разработчику: ${DEV_EMAIL}`
-      );
-    }
-  };
+  const sections = [
+    { id: "tickets", title: "Мои билеты (пока заглушка)" },
+    { id: "notifications", title: "Настройки уведомлений" },
+    { id: "about", title: "О приложении" }
+  ];
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <View style={styles.avatarWrap}>
-            <Image
-              // временная заглушка-аватар, можно заменить на своё фото
-              source={require("../../assets/images/logo.png")}
-              style={styles.avatar}
-            />
+          <Image
+            source={{
+              uri: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?q=80&w=800&auto=format&fit=crop"
+            }}
+            style={styles.avatar}
+          />
+          <View style={styles.headerText}>
+            <Text style={styles.name}>Гость</Text>
+            <Text style={styles.subtitle}>
+              Войдите, чтобы сохранять любимые спектакли и билеты
+            </Text>
           </View>
-          <Text style={styles.name}>Гость</Text>
-
-          <Pressable style={styles.loginButton} onPress={handleLoginPress}>
-            <Text style={styles.loginText}>Войти</Text>
-          </Pressable>
         </View>
+
+        <Pressable style={styles.loginButton} onPress={handleLogin}>
+          <Text style={styles.loginText}>Войти</Text>
+        </Pressable>
 
         <View style={styles.sectionBlock}>
           <Text style={styles.sectionTitle}>Разделы</Text>
-
-          <Pressable
-            style={styles.row}
-            onPress={() => handleSectionPress("О приложении")}
-          >
-            <Text style={styles.rowText}>О приложении</Text>
-            <Text style={styles.chevron}>›</Text>
-          </Pressable>
-
-          <Pressable
-            style={styles.row}
-            onPress={() => handleSectionPress("Настройки уведомлений")}
-          >
-            <Text style={styles.rowText}>Настройки уведомлений</Text>
-            <Text style={styles.chevron}>›</Text>
-          </Pressable>
-
-          <Pressable
-            style={styles.row}
-            onPress={() => handleSectionPress("Политика конфиденциальности")}
-          >
-            <Text style={styles.rowText}>Политика конфиденциальности</Text>
-            <Text style={styles.chevron}>›</Text>
-          </Pressable>
+          {sections.map((item) => (
+            <Pressable
+              key={item.id}
+              style={({ pressed }) => [
+                styles.sectionItem,
+                pressed && styles.sectionItemPressed
+              ]}
+              onPress={() => {
+                Alert.alert(item.title, "Эта секция пока заглушка.");
+              }}
+            >
+              <Text style={styles.sectionText}>{item.title}</Text>
+            </Pressable>
+          ))}
         </View>
 
         <View style={styles.sectionBlock}>
-          <Text style={styles.sectionTitle}>Обратная связь</Text>
-
-          <Pressable style={styles.row} onPress={handleWriteDeveloper}>
-            <Text style={styles.rowText}>Написать разработчику</Text>
-            <Text style={styles.chevron}>✉</Text>
+          <Text style={styles.sectionTitle}>Связаться</Text>
+          <Pressable
+            style={styles.contactButton}
+            onPress={handleContactDeveloper}
+          >
+            <Text style={styles.contactText}>Написать разработчику</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -93,74 +91,83 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg
   },
-  scrollContent: {
-    padding: 16,
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
     paddingBottom: 32
   },
   header: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 24
-  },
-  avatarWrap: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: colors.accent,
-    marginBottom: 12
+    marginBottom: 16
   },
   avatar: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "cover"
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    marginRight: 16
+  },
+  headerText: {
+    flex: 1
   },
   name: {
     color: colors.text,
     fontSize: 20,
-    fontWeight: "600",
-    marginBottom: 12
+    fontWeight: "700",
+    marginBottom: 4
+  },
+  subtitle: {
+    color: colors.textMuted,
+    fontSize: 14
   },
   loginButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    backgroundColor: colors.accent,
     borderRadius: 999,
-    backgroundColor: colors.accent
+    paddingVertical: 10,
+    alignItems: "center",
+    marginBottom: 24
   },
   loginText: {
-    color: "#000",
+    color: "#0f172a",
     fontWeight: "600",
     fontSize: 16
   },
   sectionBlock: {
-    backgroundColor: colors.panel,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.line,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 16
+    marginBottom: 24
   },
   sectionTitle: {
-    color: colors.textMuted,
-    fontSize: 14,
-    marginBottom: 4
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-    justifyContent: "space-between"
-  },
-  rowText: {
     color: colors.text,
-    fontSize: 16
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 8
   },
-  chevron: {
-    color: colors.textMuted,
-    fontSize: 18,
-    marginLeft: 8
+  sectionItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.line,
+    marginBottom: 6
+  },
+  sectionItemPressed: {
+    backgroundColor: "#020617"
+  },
+  sectionText: {
+    color: colors.text,
+    fontSize: 15
+  },
+  contactButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    alignItems: "center"
+  },
+  contactText: {
+    color: colors.accent,
+    fontSize: 15,
+    fontWeight: "500"
   }
 });
