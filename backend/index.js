@@ -3,7 +3,7 @@ const cors = require("cors");
 const { fetchShowsFromRzndrama } = require("./scrapeRzndrama");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
@@ -14,7 +14,7 @@ const fallbackShows = [
     id: "1",
     title: "Ревизор",
     theatre: "Драматический театр",
-    date: "2025-12-01 19:00",
+    date: "2025-12-01T19:00:00",
     genre: "комедия",
     images: [
       "https://images.unsplash.com/photo-1515165562835-c4c9e0737eaa?q=80&w=1200&auto=format&fit=crop",
@@ -26,7 +26,7 @@ const fallbackShows = [
     id: "2",
     title: "Чайка",
     theatre: "Театр им. Чехова",
-    date: "2025-12-02 18:30",
+    date: "2025-12-02T18:30:00",
     genre: "драма",
     images: [
       "https://images.unsplash.com/photo-1438109491414-7198515b166b?q=80&w=1200&auto=format&fit=crop",
@@ -38,7 +38,7 @@ const fallbackShows = [
     id: "3",
     title: "Щелкунчик",
     theatre: "Музыкальный театр",
-    date: "2025-12-03 19:00",
+    date: "2025-12-03T19:00:00",
     genre: "балет",
     images: [
       "https://images.unsplash.com/photo-1461782290329-3f723aa707a4?q=80&w=1200&auto=format&fit=crop",
@@ -48,35 +48,68 @@ const fallbackShows = [
   }
 ];
 
-// GET /shows — сначала пробуем сайт, если пусто или ошибка — отдаём fallback
-app.get("/shows", async (req, res) => {
+// простейший in-memory кэш, чтобы не долбить сайт на каждый запрос
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 минут
+let cache = {
+  data: null,
+  fetchedAt: 0
+};
+
+async function getShowsWithCache() {
+  const now = Date.now();
+
+  // Режим "не скрапить сайт, всегда использовать fallback"
+  if (process.env.DISABLE_SCRAPE === "true") {
+    if (!cache.data) {
+      console.log("⚙️ DISABLE_SCRAPE=true — использую только fallbackShows");
+      cache = { data: fallbackShows, fetchedAt: now };
+    }
+    return cache.data;
+  }
+
+  // обычный режим с кэшем
+  if (cache.data && now - cache.fetchedAt < CACHE_TTL_MS) {
+    return cache.data;
+  }
+
   try {
     const scraped = await fetchShowsFromRzndrama();
-    console.log("🔎 scraped shows count:", scraped.length);
+    console.log("🔎 scraped shows count:", Array.isArray(scraped) ? scraped.length : 0);
 
-    if (!Array.isArray(scraped) || scraped.length === 0) {
-      console.log("⚠️ scraped пустой, отдаю fallback:", fallbackShows.length);
-      return res.json(fallbackShows);
+    if (Array.isArray(scraped) && scraped.length > 0) {
+      cache = { data: scraped, fetchedAt: now };
+      console.log("✅ отдаю scraped из сети");
+      return scraped;
     }
 
-    console.log("✅ отдаю scraped:", scraped.length);
-    return res.json(scraped);
+    console.log("⚠️ scraped пустой, отдаю fallback:", fallbackShows.length);
+    cache = { data: fallbackShows, fetchedAt: now };
+    return fallbackShows;
   } catch (err) {
     console.error("❌ Ошибка при загрузке афиши с rzndrama.ru, отдаю fallback:", err.message);
-    return res.json(fallbackShows);
+    cache = { data: fallbackShows, fetchedAt: now };
+    return fallbackShows;
   }
+}
+
+// GET /shows — с кэшем
+app.get("/shows", async (req, res) => {
+  const shows = await getShowsWithCache();
+  res.json(shows);
 });
 
-// GET /shows/:id — то же самое, но по id
+// GET /shows/:id — ищем в актуальных данных, затем в fallback
 app.get("/shows/:id", async (req, res) => {
   try {
-    const scraped = await fetchShowsFromRzndrama();
-    let source = "scraped";
-    let show = scraped.find((s) => s.id === req.params.id);
+    const shows = await getShowsWithCache();
+
+    let source = "scraped-or-fallback";
+    let show = shows.find((s) => s.id === req.params.id);
 
     if (!show) {
+      // дополнительный запасной вариант — прямой поиск по fallbackShows
       show = fallbackShows.find((s) => s.id === req.params.id);
-      source = "fallback";
+      source = "fallback-only";
     }
 
     if (!show) {

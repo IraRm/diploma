@@ -1,5 +1,4 @@
 const axios = require("axios");
-// iconv пока оставим на всякий, но фактически страница в utf-8
 const iconv = require("iconv-lite");
 
 // русские месяцы в родительном падеже -> номер месяца JS
@@ -60,11 +59,11 @@ async function fetchShowsFromRzndrama() {
   // чистим HTML → текст
   const text = html
     .replace(/\r\n/g, "\n")
-    .replace(/&nbsp;/g, " ")      // ВАЖНО: заменяем HTML-сущность &nbsp; на пробел
-    .replace(/\u00a0/g, " ")      // на всякий случай, если вдруг реально NBSP-символ
-    .replace(/<[^>]+>/g, " ")     // убираем теги
-    .replace(/[ \t]+/g, " ")      // схлопываем пробелы
-    .replace(/\n[ \t]+/g, "\n");  // чистим пробелы в начале строк
+    .replace(/&nbsp;/g, " ")
+    .replace(/\u00a0/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n[ \t]+/g, "\n");
 
   console.log("🔎 snippet:", text.slice(90, 350));
 
@@ -76,7 +75,7 @@ async function fetchShowsFromRzndrama() {
 
   const shows = [];
 
-  // упрощённый регексп: месяц берём как любое слово (\S+), а не [а-яё]+
+  // дата: "04 декабря, 19:00 - ..."
   const eventRegex =
     /(\d{1,2})\s+(\S+),\s*(\d{1,2}:\d{2})\s*-\s*([^\n\r]+)/g;
 
@@ -87,11 +86,12 @@ async function fetchShowsFromRzndrama() {
     const time = match[3];
     const titleAndRest = match[4].trim();
 
-    const monthWord = monthWordRaw.toLowerCase();
+    // убираем лишние знаки препинания у месяца
+    const monthWord = monthWordRaw.toLowerCase().replace(/[.,]/g, "");
     const monthIndex = MONTHS[monthWord];
     if (monthIndex === undefined) {
-      // если вдруг попалось что-то вроде "декабря," с лишними символами — можно залогировать
-      // console.log("Неизвестный месяц:", monthWordRaw);
+      // если попалось что-то вообще левое — логируем и пропускаем
+      console.log("Неизвестный месяц:", monthWordRaw);
       continue;
     }
 
@@ -106,7 +106,8 @@ async function fetchShowsFromRzndrama() {
     let title = rawTitle.split("(")[0].replace(/[«»"]/g, "").trim();
     if (!title) continue;
 
-    const dateStr = `${year}-${pad2(monthIndex + 1)}-${pad2(day)} ${time}`;
+    // ISO-формат, дружелюбный к new Date() везде
+    const dateStr = `${year}-${pad2(monthIndex + 1)}-${pad2(day)}T${time}:00`;
 
     const id = `${jsDate.getFullYear()}-${pad2(
       jsDate.getMonth() + 1
