@@ -1,28 +1,72 @@
-import { View, Text, StyleSheet, FlatList } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { colors } from "../../src/theme/colors";
-import { useFavorites } from "../../src/state/FavoritesContext";
-import { mockShows } from "../../src/data/mockShows";
+import { fetchShows } from "../../src/api/shows";
 import { ShowCard } from "../../src/components/ShowCard";
+import { mockShows, type Show } from "../../src/data/mockShows";
+import { useFavorites } from "../../src/state/FavoritesContext";
+import { colors } from "../../src/theme/colors";
 
 export default function FavoritesScreen() {
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
 
-  const favoriteShows = mockShows.filter((show) => favorites.includes(show.id));
+  const [shows, setShows] = useState<Show[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [backendOk, setBackendOk] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        setLoading(true);
+        setBackendOk(false);
+
+        const data = await fetchShows();
+        if (cancelled) return;
+
+        setShows(data);
+        setBackendOk(true);
+      } catch (e) {
+        if (cancelled) return;
+        // fallback: чтобы хотя бы моками можно было пользоваться без сервера
+        setShows(mockShows);
+        setBackendOk(false);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const favoriteShows = useMemo(
+    () => shows.filter((show) => favorites.includes(String(show.id))),
+    [shows, favorites]
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
         <Text style={styles.title}>Любимые спектакли</Text>
 
-        {favoriteShows.length === 0 ? (
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyText}>Пока ничего нет в любимом</Text>
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={colors.accent} />
+            <Text style={styles.emptyText}>Загружаем…</Text>
+          </View>
+        ) : favoriteShows.length === 0 ? (
+          <View style={styles.center}>
+            <Text style={styles.emptyText}>
+              Пока ничего нет в любимом
+              {!backendOk ? " (сервер недоступен — показаны моки)" : ""}
+            </Text>
           </View>
         ) : (
           <FlatList
             data={favoriteShows}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => String(item.id)}
             contentContainerStyle={styles.listContent}
             renderItem={({ item }) => (
               <ShowCard
@@ -49,16 +93,8 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 4
   },
-  listContent: {
-    paddingTop: 4,
-    paddingBottom: 24
-  },
-  emptyWrap: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  emptyText: {
-    color: colors.textMuted
-  }
+  listContent: { paddingTop: 4, paddingBottom: 24 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  emptyText: { color: colors.textMuted, textAlign: "center", paddingHorizontal: 24 }
 });
+

@@ -1,20 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
+  ActivityIndicator,
   FlatList,
-  ActivityIndicator
+  StyleSheet,
+  Text,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { colors } from "../../src/theme/colors";
-import { SearchBar } from "../../src/components/SearchBar";
-import { FilterChips } from "../../src/components/FilterChips";
-import { ShowCard } from "../../src/components/ShowCard";
-import { useFavorites } from "../../src/state/FavoritesContext";
-import type { Show } from "../../src/data/mockShows";
-import { FilterModal } from "../../src/components/FilterModal";
 import { fetchShows } from "../../src/api/shows";
+import { FilterChips } from "../../src/components/FilterChips";
+import { FilterModal } from "../../src/components/FilterModal";
+import { SearchBar } from "../../src/components/SearchBar";
+import { ShowCard } from "../../src/components/ShowCard";
+import type { Show } from "../../src/data/mockShows";
+import { useFavorites } from "../../src/state/FavoritesContext";
+import { colors } from "../../src/theme/colors";
+import { filterShowsForCurrentMonth } from "../../src/utils/currentMonth";
+import { parseShowDate } from "../../src/utils/formatShowDateTime";
 
 export default function HomeScreen() {
   const [query, setQuery] = useState("");
@@ -27,6 +29,7 @@ export default function HomeScreen() {
   const [backendOk, setBackendOk] = useState(false);
 
   const [dateModalVisible, setDateModalVisible] = useState(false);
+  const [theatreModalVisible, setTheatreModalVisible] = useState(false);
 
   const { toggleFavorite, isFavorite } = useFavorites();
 
@@ -61,6 +64,36 @@ export default function HomeScreen() {
     };
   }, []);
 
+  const theatreOptions = useMemo(() => {
+  const set = new Set<string>();
+  for (const s of shows) {
+    if (s?.theatre) set.add(s.theatre);
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b, "ru"));
+}, [shows]);
+
+const dateBounds = useMemo(() => {
+  const now = new Date();
+
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const startOfDayAfterTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
+
+  const startOfWeek = new Date(startOfToday);
+  const day = (startOfWeek.getDay() + 6) % 7;
+  startOfWeek.setDate(startOfWeek.getDate() - day);
+
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(endOfWeek.getDate() + 7);
+
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+  return { startOfToday, startOfTomorrow, startOfDayAfterTomorrow, startOfWeek, endOfWeek, startOfMonth, startOfNextMonth };
+}, []);
+
+
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const now = new Date();
@@ -83,7 +116,14 @@ export default function HomeScreen() {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-    return shows.filter((show) => {
+   const baseShows =
+  selectedDateFilter === "В этом месяце"
+    ? filterShowsForCurrentMonth(shows)
+    : shows;
+
+return baseShows.filter((show) => {
+
+
       const matchesQuery =
         !q ||
         show.title.toLowerCase().includes(q) ||
@@ -94,33 +134,37 @@ export default function HomeScreen() {
 
       let matchesDate = true;
       if (selectedDateFilter) {
-        const showDate = new Date(show.date);
-        if (isNaN(showDate.getTime())) {
-          // если дату не смогли распарсить — прячем её при включённом фильтре по дате
-          matchesDate = false;
-        } else {
-          switch (selectedDateFilter) {
-            case "Сегодня":
-              matchesDate =
-                showDate >= startOfToday && showDate < startOfTomorrow;
-              break;
-            case "Завтра":
-              matchesDate =
-                showDate >= startOfTomorrow &&
-                showDate < startOfDayAfterTomorrow;
-              break;
-            case "На этой неделе":
-              matchesDate =
-                showDate >= startOfWeek && showDate < endOfWeek;
-              break;
-            case "В этом месяце":
-              matchesDate =
-                showDate >= startOfMonth && showDate < startOfNextMonth;
-              break;
-            default:
-              matchesDate = true;
-          }
-        }
+        const showDate = parseShowDate(show.date);
+
+if (!showDate) {
+  matchesDate = false;
+} else {
+  switch (selectedDateFilter) {
+    case "Сегодня":
+      matchesDate =
+        showDate >= startOfToday && showDate < startOfTomorrow;
+      break;
+
+    case "Завтра":
+      matchesDate =
+        showDate >= startOfTomorrow &&
+        showDate < startOfDayAfterTomorrow;
+      break;
+
+    case "На этой неделе":
+      matchesDate =
+        showDate >= startOfWeek && showDate < endOfWeek;
+      break;
+
+    case "В этом месяце":
+      matchesDate =
+        showDate >= startOfMonth && showDate < startOfNextMonth;
+      break;
+
+    default:
+      matchesDate = true;
+  }
+}
       }
 
       return matchesQuery && matchesGenre && matchesTheatre && matchesDate;
@@ -130,24 +174,32 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-        <Text style={styles.title}>Спектакли в вашем городе</Text>
 
-        {/* если хочешь, debug-строчку можно оставить/убрать */}
-        <Text style={styles.debug}>
-          С сервера пришло: {shows.length} спектаклей
-        </Text>
+        <Text style={styles.afisha}>Афиша</Text>
+<Text style={styles.subtitle}>Найдено: {filtered.length}</Text>
+
+
+{/*
+<Text style={styles.debug}>
+  Сейчас (устройство): {new Date().toISOString().slice(0, 10)}
+</Text>
+<Text style={styles.debug}>
+  В этом месяце: {filterShowsForCurrentMonth(shows).length}
+</Text>
+<Text style={styles.debug}>
+  После фильтров: {filtered.length}
+</Text>
+*/}
 
         <SearchBar value={query} onChange={setQuery} />
 
         <FilterChips
-          onPressDate={() => setDateModalVisible(true)}
-          onPressGenre={() => {
-            // TODO: модалка жанров
-          }}
-          onPressTheatre={() => {
-            // TODO: модалка театров
-          }}
-        />
+           onPressDate={() => setDateModalVisible(true)}
+  onPressGenre={() => {
+    // TODO: модалка жанров
+  }}
+  onPressTheatre={() => setTheatreModalVisible(true)}
+/>
 
         {loading ? (
           <View style={styles.center}>
@@ -192,6 +244,18 @@ export default function HomeScreen() {
           onSelect={(value) => setSelectedDateFilter(value)}
           onClose={() => setDateModalVisible(false)}
         />
+        <FilterModal
+  visible={theatreModalVisible}
+  title="Выбор театра"
+  options={["Все театры", ...theatreOptions]}
+  selectedValue={selectedTheatre ? selectedTheatre : "Все театры"}
+  onSelect={(value) => {
+    if (value === "Все театры") setSelectedTheatre(null);
+    else setSelectedTheatre(value);
+  }}
+  onClose={() => setTheatreModalVisible(false)}
+/>
+
       </View>
     </SafeAreaView>
   );
@@ -235,5 +299,19 @@ const styles = StyleSheet.create({
   emptyText: {
     color: colors.textMuted,
     textAlign: "center"
-  }
+  },
+  subtitle: {
+  color: colors.textMuted,
+  fontSize: 13,
+  paddingHorizontal: 16,
+  paddingBottom: 8
+},
+afisha: {
+  fontSize: 32,
+  fontWeight: "800",
+  color: colors.text,
+  paddingHorizontal: 16,
+  paddingTop: 12,
+  paddingBottom: 4
+},
 });

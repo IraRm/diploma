@@ -1,12 +1,22 @@
 const express = require("express");
 const cors = require("cors");
 const { fetchShowsFromRzndrama } = require("./scrapeRzndrama");
+const { fetchShowsFromPerehod } = require("./scrapePerehod");
+const { fetchShowsFromRznPuppet } = require("./scrapeRznPuppet");
+const { fetchShowsFromRznTdm } = require("./rznTdm"); 
+const { fetchShowsFromRomust } = require("./scrapeRomust");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
 app.use(express.json());
+
+
+app.use((req, res, next) => {
+  console.log("➡️", req.method, req.originalUrl);
+  next();
+});
+
 
 // Fallback-данные на случай, если сайт недоступен или парсинг ничего не дал
 const fallbackShows = [
@@ -49,7 +59,7 @@ const fallbackShows = [
 ];
 
 // простейший in-memory кэш, чтобы не долбить сайт на каждый запрос
-const CACHE_TTL_MS = 10 * 60 * 1000; // 10 минут
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 минут
 let cache = {
   data: null,
   fetchedAt: 0
@@ -73,7 +83,32 @@ async function getShowsWithCache() {
   }
 
   try {
-    const scraped = await fetchShowsFromRzndrama();
+    const [rzndrama, perehod, puppet, tdm, romust] = await Promise.all([
+  fetchShowsFromRzndrama(),
+  fetchShowsFromPerehod(),
+  fetchShowsFromRznPuppet(),
+  fetchShowsFromRznTdm(),
+  fetchShowsFromRomust()
+]);
+
+
+
+const scraped = [
+  ...(Array.isArray(rzndrama) ? rzndrama : []),
+  ...(Array.isArray(perehod) ? perehod : []),
+  ...(Array.isArray(puppet) ? puppet : []),
+  ...(Array.isArray(tdm) ? tdm : []),
+  ...(Array.isArray(romust) ? romust : [])
+].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+console.log("🔎 scraped shows count:", Array.isArray(scraped) ? scraped.length : 0);
+
+console.log(
+  "🎭 theatres:",
+  [...new Set(scraped.map((s) => s.theatre))].join(" | ")
+);
+
+
     console.log("🔎 scraped shows count:", Array.isArray(scraped) ? scraped.length : 0);
 
     if (Array.isArray(scraped) && scraped.length > 0) {
@@ -86,17 +121,18 @@ async function getShowsWithCache() {
     cache = { data: fallbackShows, fetchedAt: now };
     return fallbackShows;
   } catch (err) {
-    console.error("❌ Ошибка при загрузке афиши с rzndrama.ru, отдаю fallback:", err.message);
+    console.error("❌ Ошибка при скрапинге афиш, отдаю fallback:", err.message);
     cache = { data: fallbackShows, fetchedAt: now };
     return fallbackShows;
   }
 }
 
-// GET /shows — с кэшем
 app.get("/shows", async (req, res) => {
   const shows = await getShowsWithCache();
-  res.json(shows);
+  res.setHeader("Cache-Control", "no-store");
+  res.json(Array.isArray(shows) ? shows : []);
 });
+
 
 // GET /shows/:id — ищем в актуальных данных, затем в fallback
 app.get("/shows/:id", async (req, res) => {
@@ -126,6 +162,11 @@ app.get("/shows/:id", async (req, res) => {
     }
     res.json(show);
   }
+});
+
+app.get("/ping", (req, res) => {
+  console.log("➡️ PING HIT");
+  res.json({ ok: true, ts: new Date().toISOString() });
 });
 
 app.listen(PORT, () => {

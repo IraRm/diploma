@@ -30,23 +30,38 @@ function pad2(n) {
 
 // качаем и декодируем HTML
 async function downloadHtml() {
-  const url = "https://www.rzndrama.ru/ru/repertuar-na-mesyac.html";
+  const url = "http://www.rzndrama.ru/ru/repertuar-na-mesyac.html";
 
-  const resp = await axios.get(url, { responseType: "arraybuffer" });
+  const resp = await axios.get(url, {
+    responseType: "arraybuffer",
+    timeout: 15000,
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      "Accept-Language": "ru-RU,ru;q=0.9",
+      "Accept": "text/html,application/xhtml+xml"
+    }
+  });
+
   const buf = Buffer.from(resp.data);
 
-  // пробуем utf8
+  // ✅ СНАЧАЛА объявляем html
   let html = buf.toString("utf8");
+
+  // ✅ ТОЛЬКО ПОТОМ логируем
+  console.log("HTML length:", html.length);
+  console.log("Has 'Календарь':", html.includes("Календарь"));
+  console.log("Has 'декабря':", html.includes("декабря"));
+
   if (html.includes("Афиша на ближайшие месяцы") || html.includes("Календарь")) {
     console.log("✅ HTML успешно декодирован как utf8");
     return html;
   }
 
-  // fallback в win1251, если вдруг понадобится
   html = iconv.decode(buf, "win1251");
   console.log("⚠️ utf8 не подошёл, декодирую как win1251");
   return html;
 }
+
 
 /**
  * Тянем страницу "Афиша на ближайшие месяцы"
@@ -58,17 +73,32 @@ async function fetchShowsFromRzndrama() {
 
   // чистим HTML → текст
   const text = html
-    .replace(/\r\n/g, "\n")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\u00a0/g, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n[ \t]+/g, "\n");
+  .replace(/<script[\s\S]*?<\/script>/gi, "")
+  .replace(/<style[\s\S]*?<\/style>/gi, "")
+  .replace(/<br\s*\/?>/gi, "\n")
+  .replace(/<\/(p|div|li|tr|td|th|h[1-6])>/gi, "\n")
+  .replace(/<[^>]+>/g, "")
+  .replace(/[ \t\r\f\v]+/g, " ")
+  .replace(/\n{3,}/g, "\n\n")
+  .trim();
 
-  console.log("🔎 snippet:", text.slice(90, 350));
+  const normalizedText = text.replace(/\u00A0/g, " ");
+
+const looksLikeSchedule =
+  normalizedText.includes("Календарь") ||
+  /\d{1,2}\s+[А-ЯЁа-яё]+,?\s+\d{1,2}:\d{2}/.test(normalizedText);
+
+if (!looksLikeSchedule) {
+  console.log("⚠️ Похоже, пришла не страница афиши. HTML head:", html.slice(0, 400));
+  return [];
+}
+
+
+
+  console.log("🔎 snippet:", normalizedText.slice(0, 800));
 
   let year = new Date().getFullYear();
-  const headerMatch = text.match(/Календарь[\s\S]{0,100}?([А-ЯЁа-яё]+)\s+(\d{4})/);
+  const headerMatch = normalizedText.match(/Календарь[\s\S]{0,100}?([А-ЯЁа-яё]+)\s+(\d{4})/);
   if (headerMatch) {
     year = Number(headerMatch[2]);
   }
@@ -77,10 +107,11 @@ async function fetchShowsFromRzndrama() {
 
   // дата: "04 декабря, 19:00 - ..."
   const eventRegex =
-    /(\d{1,2})\s+(\S+),\s*(\d{1,2}:\d{2})\s*-\s*([^\n\r]+)/g;
+  /(\d{1,2})\s+([А-ЯЁа-яё]+),?\s*(\d{1,2}:\d{2})\s*[-–—]\s*([^\n\r]+)/g;
+
 
   let match;
-  while ((match = eventRegex.exec(text)) !== null) {
+  while ((match = eventRegex.exec(normalizedText)) !== null) {
     const day = Number(match[1]);
     const monthWordRaw = match[2];
     const time = match[3];

@@ -1,9 +1,11 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 
+type FavId = string | number;
+
 type FavoritesContextType = {
   favorites: string[];
-  toggleFavorite: (id: string) => void;
-  isFavorite: (id: string) => boolean;
+  toggleFavorite: (id: FavId) => void;
+  isFavorite: (id: FavId) => boolean;
 };
 
 const FavoritesContext = createContext<FavoritesContextType | undefined>(undefined);
@@ -11,20 +13,22 @@ const FavoritesContext = createContext<FavoritesContextType | undefined>(undefin
 export function FavoritesProvider({ children }: { children: ReactNode }) {
   const [favorites, setFavorites] = useState<string[]>([]);
 
-  const toggleFavorite = useCallback((id: string) => {
-    setFavorites((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  }, []);
-
-  const value = useMemo(
-    () => ({
-      favorites,
-      toggleFavorite,
-      isFavorite: (id: string) => favorites.includes(id)
-    }),
-    [favorites, toggleFavorite]
+  const toggleFavorite = useCallback((id: FavId) => {
+  const key = String(id);
+  setFavorites((prev) =>
+    prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]
   );
+}, []);
+
+const value = useMemo(
+  () => ({
+    favorites,
+    toggleFavorite,
+    isFavorite: (id: FavId) => favorites.includes(String(id))
+  }),
+  [favorites, toggleFavorite]
+);
+
 
   return <FavoritesContext.Provider value={value}>{children}</FavoritesContext.Provider>;
 }

@@ -1,15 +1,16 @@
 import { FC } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
+  GestureResponderEvent,
+  Image,
   Pressable,
   ScrollView,
-  Image,
-  GestureResponderEvent
+  StyleSheet,
+  Text,
+  View
 } from "react-native";
-import { colors } from "../theme/colors";
 import type { Show } from "../data/mockShows";
+import { colors } from "../theme/colors";
+import { formatShowDateTime } from '../utils/formatShowDateTime';
 
 type Props = {
   show: Show;
@@ -36,7 +37,7 @@ export const ShowCard: FC<Props> = ({ show, isFavorite, onToggleFavorite, onPres
       </View>
 
       <Text style={styles.theatre}>{show.theatre}</Text>
-      <Text style={styles.date}>{show.date}</Text>
+      <Text style={styles.date}>{formatShowDateTime(show.date)}</Text>
 
       {show.images && show.images.length > 0 && (
         <ScrollView
