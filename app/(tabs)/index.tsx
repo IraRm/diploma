@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -107,7 +108,6 @@ const dateBounds = useMemo(() => {
     );
 
     const startOfWeek = new Date(startOfToday);
-    // неделя понедельник–воскресенье
     const day = (startOfWeek.getDay() + 6) % 7; // 0 = понедельник
     startOfWeek.setDate(startOfWeek.getDate() - day);
     const endOfWeek = new Date(startOfWeek);
@@ -218,18 +218,20 @@ if (!showDate) {
           </View>
         ) : (
           <FlatList
-            data={filtered}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listContent}
-            renderItem={({ item }) => (
-              <ShowCard
-                show={item}
-                isFavorite={isFavorite(item.id)}
-                onToggleFavorite={() => toggleFavorite(item.id)}
-              />
-            )}
-          />
-        )}
+  data={filtered}
+  keyExtractor={(item) => item.id}
+  contentContainerStyle={styles.listContent}
+  renderItem={({ item }) => (
+    <ShowCard
+      show={item}
+      isFavorite={isFavorite(item.id)}
+      onToggleFavorite={() => toggleFavorite(item.id)}
+      onPress={() => router.push(`/shows/${item.id}`)}
+    />
+  )}
+/>
+
+)}
 
         <FilterModal
           visible={dateModalVisible}
@@ -315,3 +317,4 @@ afisha: {
   paddingBottom: 4
 },
 });
+

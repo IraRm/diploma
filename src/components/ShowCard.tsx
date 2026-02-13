@@ -1,19 +1,34 @@
+// src/components/ShowCard.tsx
 import { FC } from "react";
 import {
   GestureResponderEvent,
-  Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View
 } from "react-native";
-import type { Show } from "../data/mockShows";
+
 import { colors } from "../theme/colors";
-import { formatShowDateTime } from '../utils/formatShowDateTime';
+import { formatShowDateTime } from "../utils/formatShowDateTime";
+
+// date — ближайшая дата (для превью в списке), sessions — все показы
+type ShowSession = {
+  id: string;
+  date: string;
+};
+
+type ApiShow = {
+  id: string;
+  title: string;
+  theatre: string;
+  genre?: string;
+  images?: string[];
+  date?: string;
+  sessions?: ShowSession[];
+};
 
 type Props = {
-  show: Show;
+  show: ApiShow;
   isFavorite: boolean;
   onToggleFavorite: () => void;
   onPress?: () => void;
@@ -25,33 +40,32 @@ export const ShowCard: FC<Props> = ({ show, isFavorite, onToggleFavorite, onPres
     onToggleFavorite();
   };
 
+  const nextDate = show.date ?? show.sessions?.[0]?.date;
+
   return (
     <Pressable style={styles.card} onPress={onPress}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>{show.title}</Text>
+
         <Pressable onPress={handleHeartPress} hitSlop={10}>
-          <Text style={[styles.heart, isFavorite && styles.heartActive]}>
-            ♥
-          </Text>
+          <Text style={[styles.heart, isFavorite && styles.heartActive]}>♥</Text>
         </Pressable>
       </View>
 
       <Text style={styles.theatre}>{show.theatre}</Text>
-      <Text style={styles.date}>{formatShowDateTime(show.date)}</Text>
 
-      {show.images && show.images.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          pagingEnabled
-          style={styles.imagesRow}
-          contentContainerStyle={styles.imagesContent}
-        >
-          {show.images.map((uri, idx) => (
-            <Image key={idx} source={{ uri }} style={styles.image} />
-          ))}
-        </ScrollView>
-      )}
+      <Text style={styles.date}>
+        {nextDate ? formatShowDateTime(nextDate) : "Нет дат"}
+      </Text>
+
+      {/* Можно (по желанию) показать количество показов */}
+      {show.sessions?.length ? (
+        <Text style={styles.sessionsCount}>
+          Показов: {show.sessions.length}
+        </Text>
+      ) : null}
+
+       
     </Pressable>
   );
 };
@@ -59,13 +73,14 @@ export const ShowCard: FC<Props> = ({ show, isFavorite, onToggleFavorite, onPres
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.panel,
-    borderRadius: 14,
-    padding: 12,
+    borderRadius: 20,
+    padding: 16,
     marginHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: colors.line
   },
+
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -80,14 +95,29 @@ const styles = StyleSheet.create({
     paddingRight: 8
   },
   heart: {
-    fontSize: 20,
+    fontSize: 18,
     color: colors.textMuted
   },
   heartActive: {
-    color: "#ef4444"
+    color: colors.accent
   },
-  theatre: { color: colors.textMuted, marginBottom: 2 },
-  date: { color: colors.text, fontSize: 14, marginBottom: 6 },
+
+  theatre: {
+    color: colors.textMuted,
+    marginBottom: 2
+  },
+  date: {
+    color: colors.accent,
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 6
+  },
+
+  sessionsCount: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginBottom: 6
+  },
   imagesRow: {
     marginTop: 6
   },

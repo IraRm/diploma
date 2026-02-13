@@ -12,7 +12,6 @@ function pad2(n) {
   return n.toString().padStart(2, "0");
 }
 
-// "25.12 (чт.) в 18:00" -> Date parts
 function parseDateTime(line, year) {
   const m = line.match(/(\d{1,2})\.(\d{1,2}).*?(\d{1,2}:\d{2})/);
   if (!m) return null;
@@ -21,7 +20,6 @@ function parseDateTime(line, year) {
   const month = Number(m[2]);
   const time = m[3];
 
-  // защита от мусора
   if (day < 1 || day > 31 || month < 1 || month > 12) return null;
 
   const iso = `${year}-${pad2(month)}-${pad2(day)}T${time}:00`;
@@ -29,7 +27,9 @@ function parseDateTime(line, year) {
 }
 
 async function fetchShowsFromPerehod() {
-  const url = "https://teatrperehod.ru/";
+  const baseUrl = "https://teatrperehod.ru";
+  const url = `${baseUrl}/`;
+
   const resp = await axios.get(url, {
     timeout: 15000,
     headers: {
@@ -44,10 +44,10 @@ async function fetchShowsFromPerehod() {
   const bodyText = $("body").text().replace(/\u00A0/g, " ");
   const lines = bodyText
     .split("\n")
-    .map(s => s.trim())
+    .map((s) => s.trim())
     .filter(Boolean);
 
-  const startIdx = lines.findIndex(l =>
+  const startIdx = lines.findIndex((l) =>
     l.toLowerCase().includes("ближайшие спектакли")
   );
 
@@ -57,7 +57,6 @@ async function fetchShowsFromPerehod() {
   }
 
   const shows = [];
-
   let currentYear = new Date().getFullYear();
   let sawDecember = false;
 
@@ -77,9 +76,7 @@ async function fetchShowsFromPerehod() {
       .replace(/[«»"]/g, "")
       .trim();
 
-    // если следующая строка — тоже дата, это не название
     if (parseDateTime(titleLine, currentYear)) continue;
-
     if (!titleLine) continue;
 
     const id = `${dt.iso}-${slugify(titleLine)}`;
@@ -90,7 +87,8 @@ async function fetchShowsFromPerehod() {
       theatre: 'Театр "Переход" им. Г. Кириллова',
       date: dt.iso,
       genre: "спектакль",
-      images: []
+      images: [],
+      url
     });
   }
 
@@ -99,4 +97,3 @@ async function fetchShowsFromPerehod() {
 }
 
 module.exports = { fetchShowsFromPerehod };
-

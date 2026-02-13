@@ -2,7 +2,7 @@ export type Show = {
   id: string;
   title: string;
   theatre: string;
-  date: string;     // ISO или человекочитаемая дата
+  date: string;     
   genre: string;
   images: string[];
 };

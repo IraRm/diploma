@@ -22,6 +22,7 @@ function pickFirst(obj, keys) {
   }
   return null;
 }
+
 function pickDeep(obj, paths) {
   for (const p of paths) {
     const parts = p.split(".");
@@ -29,13 +30,31 @@ function pickDeep(obj, paths) {
     let ok = true;
     for (const part of parts) {
       if (cur && typeof cur === "object" && part in cur) cur = cur[part];
-      else { ok = false; break; }
+      else {
+        ok = false;
+        break;
+      }
     }
     if (ok && cur != null && cur !== "") return cur;
   }
   return null;
 }
 
+function normalizeUrl(u, base) {
+  if (!u) return null;
+  const s = String(u).trim();
+  if (!s) return null;
+
+  if (/^https?:\/\//i.test(s)) return s;
+
+  if (s.startsWith("//")) return `https:${s}`;
+
+  try {
+    return new URL(s, base).toString();
+  } catch {
+    return null;
+  }
+}
 
 function findFirstArray(payload) {
   if (Array.isArray(payload)) return payload;
@@ -60,7 +79,6 @@ function extractIsoFromEvent(ev, fallbackYear, fallbackMonth) {
     "startDateTime"
   ]);
 
-  // 1) Если пришла строка с датой/временем — пробуем распарсить
   if (dtRaw) {
     const d1 = new Date(dtRaw);
     if (!isNaN(d1.getTime())) {
@@ -72,14 +90,12 @@ function extractIsoFromEvent(ev, fallbackYear, fallbackMonth) {
       return `${d2.getFullYear()}-${pad2(d2.getMonth() + 1)}-${pad2(d2.getDate())}T${pad2(d2.getHours())}:${pad2(d2.getMinutes())}:00`;
     }
 
-    // иногда date_start может быть "YYYY-MM-DD" без времени
     if (/^\d{4}-\d{2}-\d{2}$/.test(String(dtRaw))) {
       const [yy, mm, dd] = String(dtRaw).split("-").map(Number);
       return toIsoLocal(yy, mm, dd, "00:00");
     }
   }
 
-  // 2) fallback: год/месяц/день отдельными полями + время
   const y = Number(pickFirst(ev, ["year", "y"])) || fallbackYear;
   const m = Number(pickFirst(ev, ["month", "m"])) || fallbackMonth;
   const day = Number(pickFirst(ev, ["day", "d"])) || null;
@@ -87,7 +103,6 @@ function extractIsoFromEvent(ev, fallbackYear, fallbackMonth) {
 
   if (day && m && y) return toIsoLocal(y, m, day, time);
 
-  // 3) fallback: dateStr / startDate
   const dateStr = pickFirst(ev, ["dateStr", "startDate"]);
   if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(String(dateStr))) {
     const [yy, mm, dd] = String(dateStr).split("-").map(Number);
@@ -97,12 +112,12 @@ function extractIsoFromEvent(ev, fallbackYear, fallbackMonth) {
   return null;
 }
 
-
 async function fetchShowsFromRznTdm() {
   console.log("🎭 RznTdm: start scrape (JSON endpoint)");
 
-  const year = 2025;
-  const month = 12;
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
 
   const url = `https://rzntdm.core.ubsystem.ru/uiapi/events/${year}/${pad2(month)}`;
 
@@ -119,8 +134,12 @@ async function fetchShowsFromRznTdm() {
   const payload = resp.data;
   const events = findFirstArray(payload) || [];
 
-  console.log("🎭 RznTdm events raw count:", Array.isArray(events) ? events.length : 0);
-  if (events[0]) console.log("🎭 RznTdm raw sample keys:", Object.keys(events[0]).slice(0, 20));
+  console.log(
+    "🎭 RznTdm events raw count:",
+    Array.isArray(events) ? events.length : 0
+  );
+  if (events[0])
+    console.log("🎭 RznTdm raw sample keys:", Object.keys(events[0]).slice(0, 20));
 
   const shows = [];
 
@@ -128,35 +147,72 @@ async function fetchShowsFromRznTdm() {
     if (!ev || typeof ev !== "object") continue;
 
     const titleRaw =
-  pickFirst(ev, ["title", "name", "eventName", "caption"]) ||
-  pickDeep(ev, [
-    "performance.title",
-    "performance.name",
-    "performance.caption",
-    "performanceInfo.title",
-    "performanceInfo.name",
-    "performanceInfo.caption",
-    "performanceInfo.performance_name",
-    "performanceInfo.performanceTitle"
-  ]);
+      pickFirst(ev, ["title", "name", "eventName", "caption"]) ||
+      pickDeep(ev, [
+        "performance.title",
+        "performance.name",
+        "performance.caption",
+        "performanceInfo.title",
+        "performanceInfo.name",
+        "performanceInfo.caption",
+        "performanceInfo.performance_name",
+        "performanceInfo.performanceTitle"
+      ]);
 
-const title = String(titleRaw || "").trim();
-if (!title) continue;
+    const title = String(titleRaw || "").trim();
+    if (!title) continue;
+        const extUrl = pickDeep(ev, ["performance.ext_url"]) || null;
 
+    const posterRaw =
+      pickFirst(ev, ["image", "img", "poster", "posterUrl", "imageUrl", "picture", "photo"]) ||
+      pickDeep(ev, [
+        "performance.image",
+        "performance.img",
+        "performance.poster",
+        "performance.posterUrl",
+        "performance.imageUrl",
+        "performance.picture",
+        "performance.photo",
+
+        "performanceInfo.image",
+        "performanceInfo.img",
+        "performanceInfo.poster",
+        "performanceInfo.posterUrl",
+        "performanceInfo.imageUrl",
+        "performanceInfo.picture",
+        "performanceInfo.photo",
+
+        "images.0",
+        "photos.0",
+        "posters.0"
+      ]);
+
+    const posterUrl = normalizeUrl(posterRaw, "https://www.rzn-tdm.ru/");
 
     const iso = extractIsoFromEvent(ev, year, month);
     if (!iso) continue;
 
-    const evId = pickFirst(ev, ["id", "eventId", "uid", "guid"]) || `${iso}-${slugify(title)}`;
+    const evId =
+      pickFirst(ev, ["id", "eventId", "uid", "guid"]) || `${iso}-${slugify(title)}`;
 
     shows.push({
-      id: `tdm-${String(evId)}`,
-      title,
-      theatre: "Театр на Соборной (ТЮЗ)",
-      date: iso,
-      genre: "спектакль",
-      images: []
-    });
+  id: `tdm-${String(evId)}`,
+  source: "tdm",
+  sourceEventId: String(evId),
+
+    performanceId: ev.performance_id ?? null,
+
+  title,
+  theatre: "Театр на Соборной (ТЮЗ)",
+  date: iso,
+  genre: "спектакль",
+
+  extUrl,
+  url: extUrl,        
+  description: null,
+  images: []
+});
+
   }
 
   const uniq = new Map();
@@ -164,7 +220,9 @@ if (!title) continue;
 
   const result = Array.from(uniq.values()).sort((a, b) => a.date.localeCompare(b.date));
   console.log("✅ RznTdm parsed events count:", result.length);
+
   return result;
 }
 
 module.exports = { fetchShowsFromRznTdm };
+

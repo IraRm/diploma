@@ -1,14 +1,14 @@
-import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  ScrollView,
-  Pressable,
-  Alert
-} from "react-native";
 import * as Linking from "expo-linking";
+import {
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../src/theme/colors";
 
 export default function ProfileScreen() {
@@ -20,14 +20,14 @@ export default function ProfileScreen() {
   };
 
   const handleContactDeveloper = () => {
-    const email = "dev@example.com"; // сюда потом можно поставить свой настоящий адрес
+    const email = "dev@example.com"; 
     const subject = encodeURIComponent("Обратная связь по приложению театров");
     const body = encodeURIComponent("Здравствуйте! Хочу предложить...");
     Linking.openURL(`mailto:${email}?subject=${subject}&body=${body}`);
   };
 
   const sections = [
-    { id: "tickets", title: "Мои билеты (пока заглушка)" },
+    { id: "tickets", title: "Мои билеты" },
     { id: "notifications", title: "Настройки уведомлений" },
     { id: "about", title: "О приложении" }
   ];

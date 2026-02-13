@@ -29,7 +29,6 @@ export default function FavoritesScreen() {
         setBackendOk(true);
       } catch (e) {
         if (cancelled) return;
-        // fallback: чтобы хотя бы моками можно было пользоваться без сервера
         setShows(mockShows);
         setBackendOk(false);
       } finally {

@@ -1,21 +1,46 @@
-export function parseShowDate(dateString: string): Date {
-  // поддержка ISO и "YYYY-MM-DD HH:mm"
-  const normalized = dateString.replace(' ', 'T');
-  return new Date(normalized);
-}
+// src/utils/formatShowDateTime.ts
 
-export function formatShowDateTime(dateString: string): string {
-  const date = parseShowDate(dateString);
+export function parseShowDate(dateString?: string): Date | null {
+  if (!dateString) return null;
 
-  if (isNaN(date.getTime())) {
-    return dateString; // если вдруг что-то пойдет не так
+  const normalized = dateString.includes("T")
+    ? dateString
+    : dateString.replace(" ", "T");
+
+  const [ymd, hms] = normalized.split("T");
+  if (!ymd) return null;
+
+  const [y, m, d] = ymd.split("-").map(Number);
+  if (!y || !m || !d) return null;
+
+  let hh = 0;
+  let mm = 0;
+
+  if (hms) {
+    const parts = hms.split(":").map(Number);
+    hh = Number.isFinite(parts[0]) ? parts[0] : 0;
+    mm = Number.isFinite(parts[1]) ? parts[1] : 0;
   }
 
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const dt = new Date(y, m - 1, d, hh, mm, 0, 0);
+  return isNaN(dt.getTime()) ? null : dt;
+}
 
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
+// Форматируем без Date() → без timezone-сдвигов
+export function formatShowDateTime(dateString?: string): string {
+  if (!dateString) return "—";
 
-  return `${day}.${month} ${hours}:${minutes}`;
+  const normalized = dateString.includes("T")
+    ? dateString
+    : dateString.replace(" ", "T");
+
+  const [ymd, hms] = normalized.split("T");
+  if (!ymd || !hms) return dateString;
+
+  const [y, m, d] = ymd.split("-");
+  const [hh, mm] = hms.split(":");
+
+  if (!y || !m || !d || !hh || !mm) return dateString;
+
+  return `${d}.${m}.${y} ${hh}:${mm}`;
 }

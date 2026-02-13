@@ -1,12 +1,12 @@
 import { FC } from "react";
 import {
   Modal,
-  View,
-  Text,
-  StyleSheet,
   Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
   TouchableWithoutFeedback,
-  ScrollView
+  View
 } from "react-native";
 import { colors } from "../theme/colors";
 
@@ -126,14 +126,14 @@ const styles = StyleSheet.create({
     borderRadius: 10
   },
   optionActive: {
-    backgroundColor: "#0f172a"
+    backgroundColor: "#007AFF"
   },
   optionText: {
     color: colors.text,
     fontSize: 16
   },
   optionTextActive: {
-    color: colors.accent,
+    color: "#FFFFFF",
     fontWeight: "600"
   },
   optionReset: {

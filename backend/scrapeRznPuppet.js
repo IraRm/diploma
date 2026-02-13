@@ -23,11 +23,9 @@ function text($el) {
   return ($el.text() || "").replace(/\u00A0/g, " ").replace(/\s+/g, " ").trim();
 }
 
-// Пытаемся вытащить: "27 декабря" и "начало в 17:30"
 function parseCard(cardText, year) {
   const lower = cardText.toLowerCase();
 
-  // дата: "27 декабря"
   const dm = lower.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/);
   if (!dm) return null;
 
@@ -35,19 +33,15 @@ function parseCard(cardText, year) {
   const month = MONTHS[dm[2]];
   if (!day || !month) return null;
 
-  // время: "начало в 17:30"
   const tm = lower.match(/начало\s+в\s+(\d{1,2}:\d{2})/);
   const time = tm ? tm[1] : "00:00";
 
-  // название: обычно в заголовке h3 (на странице оно есть) :contentReference[oaicite:1]{index=1}
-  // но на всякий случай попробуем вытащить как строку до возраста "0+ / 6+ / 12+ / 16+ / 18+"
   let title = cardText.split("\n")[0].trim();
     title = title.replace(/[«»"]/g, "").replace(/\s+/g, " ").trim();
 
 
   if (!title) return null;
 
-  // год “перекатываем”: если сейчас декабрь и встретили январь — следующий год
   const now = new Date();
   let y = year ?? now.getFullYear();
   const currentMonth = now.getMonth() + 1;
@@ -76,8 +70,6 @@ async function fetchShowsFromRznPuppet() {
 console.log("🧸 RznPuppet html length:", resp.data.length);
 console.log("🧸 RznPuppet h3 count:", $("h3").length);
 
-  // На странице много карточек, каждая содержит название и дату/время :contentReference[oaicite:2]{index=2}
-  // Достаём по заголовкам h3 и их контейнерам.
   const cards = [];
 
     $("h3").each((_, h3) => {
@@ -85,8 +77,6 @@ console.log("🧸 RznPuppet h3 count:", $("h3").length);
     const title = text($h3);
     if (!title) return;
 
-    // Будем подниматься вверх по DOM, пока не найдём блок,
-    // где есть и дата (месяц), и время (начало ...)
     let $node = $h3;
     let candidate = "";
 
@@ -108,7 +98,6 @@ console.log("🧸 RznPuppet h3 count:", $("h3").length);
 
     if (!candidate) return;
 
-    // Соберём текст “заголовок + блок”
     cards.push(`${title}\n${candidate}`);
   });
 
@@ -133,7 +122,6 @@ if (cards[0]) console.log("🧸 RznPuppet card sample:", cards[0].slice(0, 500))
     });
   }
 
-  // удалим дубли по id
   const uniq = new Map();
   for (const s of shows) uniq.set(s.id, s);
 

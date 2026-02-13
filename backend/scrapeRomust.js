@@ -21,7 +21,6 @@ function norm(s) {
   return (s || "").replace(/\u00A0/g, " ").replace(/\s+/g, " ").trim();
 }
 
-// Ищем в тексте: "24 декабря 2025 в 14:00"
 function parseDateTime(blockText) {
   const low = blockText.toLowerCase();
   const m = low.match(
@@ -37,26 +36,81 @@ function parseDateTime(blockText) {
   if (!day || !month || !year || !time) return null;
 
   const iso = `${year}-${pad2(month)}-${pad2(day)}T${time}:00`;
-  return { iso, year, month, day, time };
+  return { iso };
 }
 
 function pickGenre(blockText) {
-  // На странице встречаются категории типа "Детские спектакли 0+" и т.п.
-  // Возьмём только слово/фразу до возраста.
   const t = norm(blockText);
-  const genreLine =
-    t.match(/(Мюзикл|Музыкальная комедия|Оперетта|Опера|Детские спектакли|Концертная программа|Творческая встреча|У нас в гостях|Мы в гостях)\s*\d+\+/i);
+  const genreLine = t.match(
+    /(Мюзикл|Музыкальная комедия|Оперетта|Опера|Детские спектакли|Концертная программа|Творческая встреча|У нас в гостях|Мы в гостях)\s*\d+\+/i
+  );
   if (genreLine) return norm(genreLine[1]).toLowerCase();
-
-  // fallback
   return "спектакль";
+}
+
+function absolutize(baseUrl, href) {
+  if (!href) return null;
+  if (/^https?:\/\//i.test(href)) return href;
+  if (href.startsWith("/")) return `${baseUrl}${href}`;
+  return `${baseUrl}/${href}`;
+}
+
+async function fetchPosterFromDetailPage(pageUrl) {
+  try {
+    const resp = await axios.get(pageUrl, {
+      timeout: 20000,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "Accept-Language": "ru-RU,ru;q=0.9",
+        "Accept": "text/html,application/xhtml+xml"
+      }
+    });
+
+    const $ = cheerio.load(resp.data || "");
+
+    const og =
+      $('meta[property="og:image"]').attr("content") ||
+      $('meta[name="og:image"]').attr("content") ||
+      null;
+
+    if (og && typeof og === "string") return og;
+
+    const img =
+      $("img").first().attr("src") ||
+      null;
+
+    if (!img) return null;
+
+    const base = new URL(pageUrl).origin;
+    return absolutize(base, img);
+  } catch (e) {
+    return null;
+  }
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = new Array(items.length);
+  let index = 0;
+
+  async function worker() {
+    while (index < items.length) {
+      const i = index++;
+      results[i] = await mapper(items[i], i);
+    }
+  }
+
+  const workers = Array.from({ length: Math.max(1, concurrency) }, worker);
+  await Promise.all(workers);
+  return results;
 }
 
 async function fetchShowsFromRomust() {
   console.log("🎼 RoMust: start scrape");
 
-  const url = "https://romust.ru/afisha/";
-  const resp = await axios.get(url, {
+  const baseUrl = "https://romust.ru";
+  const listUrl = `${baseUrl}/afisha/`;
+
+  const resp = await axios.get(listUrl, {
     timeout: 20000,
     headers: {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
@@ -65,81 +119,93 @@ async function fetchShowsFromRomust() {
     }
   });
 
-  const html = resp.data || "";
-  const $ = cheerio.load(html);
+  const $ = cheerio.load(resp.data || "");
 
-  console.log("🎼 RoMust html length:", html.length);
-
-  const shows = [];
+  const rawEvents = [];
   const seen = new Set();
-
-  // Берём ссылки с названием спектакля.
-  // В афише названия идут кликабельным текстом прямо рядом с датой/временем. :contentReference[oaicite:1]{index=1}
   $('a[href^="/repertuar/detail/"]').each((_, a) => {
     const $a = $(a);
     const title = norm($a.text());
+    if (!title || title.length < 2) return;
 
-    // фильтр от мусора
-    if (!title) return;
-    if (title.length < 2) return;
-    if (title.toLowerCase() === "афиша") return;
-    if (title.toLowerCase() === "купить билет") return;
+    const href = $a.attr("href") || "";
+    const pageUrl = href ? `${baseUrl}${href}` : listUrl;
 
-    // Поднимаемся вверх, ищем ближайший блок, где есть "дата месяц год в время"
     let $node = $a;
     let candidateText = "";
 
-    for (let up = 0; up < 8; up++) {
-  $node = $node.parent();
-  if (!$node || !$node.length) break;
+    for (let up = 0; up < 10; up++) {
+      $node = $node.parent();
+      if (!$node || !$node.length) break;
 
-  const t = norm($node.text());
-  if (!t) continue;
+      const t = norm($node.text());
+      if (!t) continue;
+      if (t.length > 1200) continue;
 
-  // защита: если поднялись слишком высоко (почти весь экран) — пропускаем
-  if (t.length > 900) continue;
-
-  if (parseDateTime(t)) {
-    candidateText = t;
-    break;
-  }
-}
+      if (parseDateTime(t)) {
+        candidateText = t;
+        break;
+      }
+    }
 
     if (!candidateText) return;
-    if (!candidateText.includes(title)) return;
-
 
     const dt = parseDateTime(candidateText);
     if (!dt) return;
 
     const genre = pickGenre(candidateText);
 
-    // Стабильный id
     const id = `romust-${dt.iso}-${slugify(title)}`;
-
     if (seen.has(id)) return;
     seen.add(id);
 
-    shows.push({
+    rawEvents.push({
       id,
       title,
       theatre: "Рязанский музыкальный театр",
       date: dt.iso,
       genre,
-      images: []
+      pageUrl
     });
   });
 
-  // Иногда на странице много ссылок с одинаковым title (в описаниях),
-  // поэтому дополнительно отфильтруем по валидной дате и адекватному названию
-  const result = shows
+  const events = rawEvents
     .filter((s) => s.title && s.date && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00$/.test(s.date))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  console.log("✅ RoMust parsed events count:", result.length);
-  if (result[0]) console.log("🎼 RoMust sample:", result[0]);
+  console.log("🎼 RoMust events found:", events.length);
 
-  return result;
+  const posters = await mapWithConcurrency(
+    events,
+    4,
+    async (ev) => {
+      const poster = await fetchPosterFromDetailPage(ev.pageUrl);
+      return poster;
+    }
+  );
+
+  const shows = events.map((ev, idx) => {
+    const poster = posters[idx];
+
+    return {
+      id: ev.id,
+      title: ev.title,
+      theatre: ev.theatre,
+      date: ev.date,
+      genre: ev.genre,
+      images: poster ? [poster] : [],
+      url: ev.pageUrl
+    };
+  });
+
+  console.log(
+    "✅ RoMust parsed events count:",
+    shows.length,
+    "| posters:",
+    shows.filter((s) => s.images?.length).length
+  );
+
+  return shows;
 }
 
 module.exports = { fetchShowsFromRomust };
